@@ -1,0 +1,12 @@
+YNX 0.10.0 - HUD Customization Update
+
+- Fixed the hidden milestone bar behavior: bars are enabled on first 0.10 upgrade; configurable under LOOK > BARS.
+- Bars work from real numeric ready-screen stats as well as during a run; supported stats: Crit, Haste, Echo, Armor, Speed.
+- BARS: change bar thickness and colour, enable/disable ready-screen bars, and see live style previews.
+- FRAME: FLOAT (true borderless), SOFT (background, no border), BOX (original square), ROUND (true rounded corners via alpha textures).
+- FRAME: adjustable inner padding, background opacity and rounded edge thickness.
+- TEXT: adjust icon-to-number gap independently of icon and text sizes.
+- FRAME includes one-click COMPACT, READABLE and SHOWCASE appearance presets (tracked stats unchanged).
+- Existing skins, profiles, tracked stats, spell/proc data, UI layout and mouse controls preserved.
+- UI uses 1.12-compatible textures; no modern WoW animation or widget API required.
+- Tested with a simulated Lua runtime; in-game verification remains necessary.

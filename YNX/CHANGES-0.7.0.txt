@@ -1,0 +1,23 @@
+YNX v0.7.0 - Full UI and analysis redesign
+
+* Preserves the verified v0.6.3 HUD positioning, resizing, and safety fallbacks.
+* Single EDIT LAYOUT toggle controls both MOVE and RESIZE handles.
+* Removed HUD plus button and stat/spell removal X icons.
+* Click HUD / any stat / tracked spell to open Settings.
+* Compact icons followed immediately by value, automatic width and 3 layouts.
+* Added 10 advanced stats (29 total), complete with original PNG-free TGA icons.
+* Correct bonus formatting for advanced stats whose neutral baseline is zero.
+* STAT menu reorganized into Core, Advanced, Presets.
+* Eight monitoring presets plus 3 save/load slots and shareable import codes.
+* ^ / v tracked stat ordering, reflected immediately in settings and HUD.
+* LOOK split into Layout / Style / Effects / Colors, all controls visible.
+* Eight skins, adjustable font size, icon size, brightness, background opacity,
+  border accents, row spacing, automatic/manual width and grid columns.
+* Transient pulse animation affects the number text only, avoiding HUD jumps.
+* Green/red change flash, optional glow, milestone highlight and tiny gauges.
+* INSIGHTS: summary of completed runs (last 8), meter performance, 15-second
+  stat trends and fact-based build observations. No false card/gear reads.
+* Automatic HUD startup and pre-run -- placeholders retained.
+* Backward-compatible SavedVariables and /ynx stop recovery.
+
+See README.txt for client install paths, controls and known API limitations.

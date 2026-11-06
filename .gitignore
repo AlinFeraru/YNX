@@ -1,0 +1,11 @@
+# Local editor / OS files
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.swp
+*.tmp
+# Game-local configs and account/character data
+benilla-config/
+SavedVariables/
+WTF/

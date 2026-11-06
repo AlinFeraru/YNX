@@ -5,6 +5,8 @@
 
 YNX provides a compact overview of your character's stats, spells and observable damage procs. Choose what matters to your build, arrange it how you like, and keep your screen clean during a run.
 
+**[⬇ Download YNX v0.10.1 (install-ready ZIP)](https://raw.githubusercontent.com/AlinFeraru/YNX/main/downloads/YNX-Your-Numbers-eXposed-v0.10.1.zip)** · [Configuration guide](docs/CONFIGURATION.md) · [Troubleshooting](docs/TROUBLESHOOTING.md) · [Changelog](CHANGELOG.md)
+
 ## Features
 
 - **29 character statistics**, including critical chance, critical damage, haste, echo, armor, AoE, DoT and situational bonuses.
@@ -22,14 +24,14 @@ YNX provides a compact overview of your character's stats, spells and observable
 
 ### Desktop (Windows/Linux)
 
-1. Download the ZIP from a GitHub Release (the installable archive contains a top-level `YNX` directory).
+1. [Download the **v0.10.1 installer ZIP**](https://raw.githubusercontent.com/AlinFeraru/YNX/main/downloads/YNX-Your-Numbers-eXposed-v0.10.1.zip) (it contains one top-level `YNX` directory).
 2. Extract the `YNX` folder to `benilla-config/AddOns/YNX/` next to your Azeroth Survivors executable.
 3. Confirm that `benilla-config/AddOns/YNX/YNX.toc` exists (avoid an extra nested `YNX/YNX/` directory).
 4. Restart the game or re-enter the world so the add-on loads.
 
 ### Browser version
 
-Open **Options → AddOns** in the game and install the downloadable add-on ZIP.
+Open **Options → AddOns** in the game and install the [downloadable add-on ZIP](https://raw.githubusercontent.com/AlinFeraru/YNX/main/downloads/YNX-Your-Numbers-eXposed-v0.10.1.zip).
 
 ### Updating
 
@@ -49,6 +51,8 @@ Replace the old `YNX` add-on folder. **Keep your SavedVariables** if you want to
 ### Slash commands
 
 `/ynx settings` · `/ynx lock` · `/ynx unlock` · `/ynx reset` · `/ynx stop` · `/ynx export` · `/ynx import <code>` · `/ynx debug`
+
+For an explanation of configuration options and what YNX can and cannot detect, see the [Configuration guide](docs/CONFIGURATION.md).
 
 ## Known limitations
 

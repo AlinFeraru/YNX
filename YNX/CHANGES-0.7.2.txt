@@ -1,0 +1,12 @@
+YNX v0.7.2 - complete Settings UI stability audit
+
+- Fixed all callback closures capturing Lua 5.0 for-loop variables in STATS, PRESETS, LOOK, INSIGHTS and navigation.
+- Fixed spell-selection buttons using local b inside its own initializer (nil at click time).
+- Bound a fixed argument to each callback through a helper, avoiding index drift and nil values.
+- Replaced 29x29 stat-control reordering search with direct key lookup.
+- Validated and clamped persisted style settings (including legacy SavedVariables).
+- Preserved all v0.7 HUD features and existing SavedVariables.
+- Verified with automated click-through regression audit and scenario tests (test harness stored separately).
+
+Install: close game; replace only YNX addon folder; leave SavedVariables alone.
+Recovery: /ynx settings  /ynx reset  /ynx lock

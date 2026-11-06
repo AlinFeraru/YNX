@@ -1,0 +1,7 @@
+YNX v0.7.1 - Lua 5.0 startup compatibility hotfix
+
+- Fix: UI.lua exceeded the Azeroth Survivors Lua 5.0 limit of 32 upvalues in a single function. Split Settings refresh into independent stat, spell, appearance, and insights update functions.
+- Preserve all v0.7.0 functionality, settings, profiles, and HUD positions.
+- No saved-variable changes required.
+
+Installation: close the game, replace the entire YNX folder with this one, then launch.

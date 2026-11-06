@@ -1,0 +1,31 @@
+YNX v0.8.0 — UI, Proc Tracking & Named Presets (2026-11-05)
+
+- Centered, screen-anchored settings window. HUD movement never repositions Settings.
+- Main and subnavigation now have visual grouping, selection borders, icons and help tooltips.
+- STATS includes CORE, ADVANCED, ORDER and PRESETS. ORDER shows the exact global
+  selected-stat sequence, paged ten at a time, with up/down controls.
+- Removed SMART / ALL / NONE controls from PRESETS. Their legacy slash commands
+  are unchanged for compatibility.
+- Three named custom profile slots: enter a name, SAVE or LOAD; see EMPTY,
+  SAVED or ACTIVE state. Presets retain selected stats and display order.
+- SPELLS has ABILITIES and PROCS subpages. PROCS uses ONLY the documented
+  proc=1 flag in AZS_GetMeter(), showing observed talent/item damage names,
+  cumulative run damage, DPS and share. Selected sources can appear on the
+  compact HUD, with generic icons when no verified spell icon exists.
+- Proc lists stay empty before the meter has observed actual proc damage;
+  hidden talent nodes, activation counts and internal cooldowns cannot be read.
+- LOOK now has LAYOUT, SKINS, TEXT, EFFECTS and COLORS pages.
+- Nine miniature skin previews with sample DPS, Haste, Crit and Crit Damage;
+  an original WINGED skin with a custom transparent texture was added.
+- Real provided numeric stats are shown on the ready screen instead of '--'.
+- Insights > NOTES now provides author Ynx and user-facing controls, not API notes.
+- Insights > SPELLS marks meter sources tagged as [PROC].
+- v0.7.2 saved variables and folder name stay unchanged.
+
+Checks performed: syntax load in Lua 5.4 and simulated 1.12 widget harness,
+940 reachable functions, 291 simulated button invocations, 26 maximum reachable
+captured upvalues (limit 32), plus integration assertions for procs, profiles,
+centering, startup stats, saved state and ordering.
+
+The actual Azeroth Survivors client is not available here. In-game behavior,
+texture loading and mouse handling still require verification in the game.
