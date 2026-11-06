@@ -1,0 +1,11 @@
+YNX 0.15.1 beta — Fixes for the public test build
+
+- Fixed a Lua 5.0 closure error in LOOK > BARS cap-marker toggles (UI.lua line 1338).
+- Real HUD and preview now share the same background/border colour resolver.
+- Matched rounded panel transparency and border opacity between real HUD and preview.
+- Added the missing 4px rounded border texture assets.
+- Border width 0 now hides the rounded outline (without loading a nonexistent 0px texture).
+- Preserves existing SavedVariables, tracked stats, class profiles and HUD position.
+
+Known limitation: Square BOX uses the WoW 1.12 stock 2px backdrop outline;
+its width cannot be changed with the rounded-border control.

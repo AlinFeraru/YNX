@@ -1,7 +1,7 @@
 ## Interface: 11200
 ## Title: YNX - Your Numbers eXposed
-## Notes: Compact stats, real milestone bars, rounded or borderless HUD frames, tracked spells and procs.
-## Version: 0.10.1
+## Notes: Customizable stat HUD, modern icon themes, animated milestone bars, movable settings.
+## Version: 0.15.4
 ## SavedVariables: ABASettingsDB
 Core.lua
 Catalog.lua
@@ -9,4 +9,6 @@ SpellData.lua
 ProcData.lua
 Insights.lua
 Milestones.lua
+Elements.lua
+ColorWheel.lua
 UI.lua

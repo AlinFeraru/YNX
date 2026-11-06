@@ -1,0 +1,22 @@
+YNX 0.15.0-beta — Settings & Layout Overhaul
+
+• Six icon-led LOOK pages: Layout, Themes, Frame, Text, Bars, FX.
+• Visual frame selector cards with real silhouettes (Float, Soft, Box,
+  Round, Roundless), theme preview tiles and visual Modern/Classic icons.
+• Custom hex palette: text, secondary text, background, border, fill, gain.
+• New dark-grass in-game-style preview background; persistent live preview.
+• Preview uses your selected stats, grid width, spacing, progress bars and
+  the same gain-animation renderer used by the live HUD.
+• Preview width controls and drag grip continue to resize the actual HUD.
+• Insert ROW LINE, COL LINE and SPACER as layout elements after any stat.
+  Layout elements appear in ORDER and affect both actual and preview HUD.
+• Line thickness, length, before/after margins and spacer height options.
+• Bar default 72% width (legacy untouched 100% default migrated once).
+  Bar width presets, manual length 30–120%, horizontal/vertical offsets.
+• Independent goal and hard-cap marker toggles. Unverified soft caps are
+  not claimed: Haste's 60% reference is a goal, not a cap.
+• Clearer 'Show milestone bars on ready screen' wording.
+• All existing 29 modern stat icons and cross-class spell/proc icons retained.
+• Draggable Settings and HUD edit flow with M / DONE preserved.
+• Preserves existing stat choices, profiles, spell settings and HUD positions.
+• Tested with simulated legacy WoW frame API; in-game verification required.

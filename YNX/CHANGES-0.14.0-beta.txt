@@ -1,0 +1,18 @@
+YNX v0.14.0-beta — Settings workspace overhaul
+
+- Rebuilt Settings as a wide, viewport-fitted window with draggable title bar.
+- Consolidated LOOK into OVERVIEW, STYLE and MOTION; each displays two related settings panels side by side:
+  OVERVIEW = Layout + Frame; STYLE = Themes + Text; MOTION = Effects + Bars.
+- Added a persistent interactive appearance preview on LOOK, with six sample stats using the new icon set.
+  Preview reacts to theme, typography, icon sizes, bar colours, selected frame styles and panel opacity.
+  The PLAY GAIN ANIMATION button demonstrates a sample +3.0-point Critical Chance increase.
+- Added a true rounded / borderless-rounded preview using the game's compatible nine-slice textures.
+- Replaced many oversized ON/OFF labels with compact checkbox-style controls.
+- Filled expanded STATS, SPELLS and INSIGHTS pages with contextual reference panels.
+- Migrates old LOOK tab names to the consolidated workspace, preserving existing selections, positions, named profiles and proc tracking.
+- No change to core damage/stat calculations.
+
+Compatibility
+- WoW 1.12.1 / Lua 5.0 add-on environment.
+- Uses the existing icon art included with v0.13.0-beta, with no dependency on Dragon UI.
+- Beta tested through mock WoW UI callbacks; in-game visual and interaction testing still required.

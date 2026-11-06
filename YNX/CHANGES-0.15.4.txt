@@ -1,0 +1,19 @@
+YNX v0.15.4 — Visual Overhaul
+
+Major changes since v0.10.1:
+- Modern coordinated stat icon set and improved settings navigation.
+- More visual theme, frame, text, layout, bar and FX controls.
+- Optional classic icon set and customizable font sizing.
+- Full custom palette with a colour wheel and hexadecimal colour fields.
+- Persistent live HUD preview with linked width resizing and gain demo.
+- Reworked HUD dragging (MOVE HUD > drag HUD > DONE).
+- Animated stat gains, icon pulses and bar-gain highlights.
+- Adjustable bar width, thickness, colours, offsets and markers.
+- Distinct goal, conversion-threshold and verified hard-cap markers.
+- Row dividers, column dividers and spacer items in the stat order editor.
+- Improved spell/proc icon selection across classes.
+
+Updates in 0.15.4:
+- Settings title drag surface no longer overlaps the MOVE HUD control.
+- MOVE HUD / reset / close buttons have higher frame levels.
+- No intentional changes to saved profiles or character data.

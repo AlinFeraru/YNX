@@ -55,7 +55,13 @@ function ABA.GetMilestone(key, stats)
         else state = string.format("%.0f%% TO SPEED CAP", 120-v) end
     else return nil end
     local pct = math.max(0, math.min(1, v / goal));
+    -- GOAL is a build target, MILESTONE is a guaranteed mechanic,
+    -- HARD is a verified/conditional cap.  None of the displayed
+    -- Haste or Echo goals should be mislabelled as a soft cap.
     return {value=v, goal=goal, progress=pct, marker=marker,
+        markerType=marker and "goal" or nil,
+        hardCap=(kind=="HARD") and goal or nil,
+        milestone=(kind=="MILESTONE") and goal or nil,
         kind=kind, state=state, tooltip=ABA.milestoneInfo[key] or "",
         complete=v>=goal-0.001, overflow=v>goal+0.001};
 end

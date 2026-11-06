@@ -1,5 +1,5 @@
--- YNX - Your Numbers eXposed 0.8.0; Lua 5.0 / WoW 1.12.
-ABA = { version = "0.10.0", last = nil, statChanged = {}, tooltipCache = {}, spellbook = {} };
+-- YNX - Your Numbers eXposed 0.15.4; Lua 5.0 / WoW 1.12.
+ABA = { version = "0.15.4", last = nil, statChanged = {}, tooltipCache = {}, spellbook = {} };
 
 function ABA.DB()
     if type(ABASettingsDB) ~= "table" then ABASettingsDB = {} end
@@ -12,7 +12,7 @@ function ABA.DB()
         local any=false;
         for _,v in pairs(d.enabled) do if v then any=true end end
         if d.mode ~= "custom" or not any then
-            d.enabled = {dmg=true, cd=true, crit=true, cm=true};
+            d.enabled = {dmg=true, cd=true, crit=true, cm=true, luck=true, echo=true};
         end
         d.mode = "custom";
         d.statStyle = "icons";
@@ -38,6 +38,7 @@ function ABA.DB()
     if d.columns ~= 1 and d.columns ~= 2 and d.columns ~= 3 then d.columns=2 end
     if type(d.autoWidth)~="boolean" then d.autoWidth=true end
     if type(d.rowGap)~="number" then d.rowGap=3 end
+    if type(d.colGap)~="number" then d.colGap=3 end
     -- v0.10 visual settings: do not reset existing HUD positions, stats or profiles.
     if not d.v10Bars then
         -- Reactivate milestone bars after the older UI buried the toggle.
@@ -45,7 +46,7 @@ function ABA.DB()
         d.showMilestones=true; d.v10Bars=true;
     end
     if d.frameKind~="float" and d.frameKind~="soft" and
-       d.frameKind~="box" and d.frameKind~="round" then d.frameKind="box" end
+       d.frameKind~="box" and d.frameKind~="round" and d.frameKind~="softround" then d.frameKind="round" end
     if type(d.hudPadding)~="number" then d.hudPadding=5 end
     if type(d.borderWidth)~="number" then d.borderWidth=2 end
     if type(d.iconGap)~="number" then d.iconGap=3 end
@@ -53,28 +54,80 @@ function ABA.DB()
     if type(d.barsReady)~="boolean" then d.barsReady=true end
     if d.gaugeColor~="adaptive" and d.gaugeColor~="theme" and d.gaugeColor~="cyan"
        and d.gaugeColor~="green" and d.gaugeColor~="gold" then d.gaugeColor="adaptive" end
-    d.hudPadding=math.max(1,math.min(16,d.hudPadding))
-    d.borderWidth=math.max(1,math.min(3,d.borderWidth))
-    d.iconGap=math.max(1,math.min(12,d.iconGap))
+    d.hudPadding=math.max(0,math.min(28,d.hudPadding))
+    d.borderWidth=math.max(0,math.min(4,d.borderWidth))
+    d.iconGap=math.max(0,math.min(20,d.iconGap))
+    d.colGap=math.max(0,math.min(24,d.colGap))
     d.gaugeHeight=math.max(2,math.min(7,d.gaugeHeight))
+    -- v0.11.1: finer bar controls, without resetting existing visual choices.
+    if type(d.gaugeLength)~="number" then d.gaugeLength=0.72 end
+    d.gaugeLength=math.max(0.30,math.min(1.20,d.gaugeLength));
+    -- The previous default was 100% of the cell. Adopt the shorter v0.15
+    -- default on first upgrade only when the old value was unchanged.
+    if not d.v15BarDefault then
+        if math.abs(d.gaugeLength-1)<0.00001 then d.gaugeLength=0.72 end
+        d.v15BarDefault=true
+    end
+    if type(d.gaugeOffsetX)~="number" then d.gaugeOffsetX=0 end
+    if type(d.gaugeOffsetY)~="number" then d.gaugeOffsetY=0 end
+    d.gaugeOffsetX=math.max(-40,math.min(40,d.gaugeOffsetX));
+    d.gaugeOffsetY=math.max(-16,math.min(16,d.gaugeOffsetY));
+    if type(d.gaugeTransition)~="number" then d.gaugeTransition=0.55 end
+    d.gaugeTransition=math.max(0.15,math.min(1.5,d.gaugeTransition));
+    if type(d.gaugeAnimation)~="boolean" then d.gaugeAnimation=true end
+    if type(d.gaugeHighlight)~="boolean" then d.gaugeHighlight=true end
+    if d.gaugeGainTint~="green" and d.gaugeGainTint~="cyan" and d.gaugeGainTint~="gold" then d.gaugeGainTint="green" end
     if type(d.orderSeparators)~="table" then d.orderSeparators={} end
+    if type(d.layoutExtras)~="table" then
+        d.layoutExtras={}
+        for key,kind in pairs(d.orderSeparators) do
+            if kind=="h" or kind=="v" then d.layoutExtras[key]={kind="separator"} end
+        end
+    end
+    if type(d.separatorThickness)~="number" then d.separatorThickness=2 end
+    if type(d.separatorBefore)~="number" then d.separatorBefore=6 end
+    if type(d.separatorAfter)~="number" then d.separatorAfter=6 end
+    if type(d.separatorLength)~="number" then d.separatorLength=0.90 end
+    if type(d.spacerHeight)~="number" then d.spacerHeight=16 end
+    if type(d.showGoalMarkers)~="boolean" then d.showGoalMarkers=true end
+    if type(d.showConversionMarkers)~="boolean" then d.showConversionMarkers=true end
+    -- No verified soft-cap markers exist at present.  Preserve a legacy
+    -- saved preference but do not offer a nonfunctional checkbox in Settings.
+    if type(d.showSoftCapMarkers)~="boolean" then d.showSoftCapMarkers=false end
+    if type(d.showHardCapMarkers)~="boolean" then d.showHardCapMarkers=true end
+    if type(d.manualColorsEnabled)~="boolean" then d.manualColorsEnabled=false end
+    if type(d.manualColors)~="table" then d.manualColors={} end
+    local colors={text="85F5FF",secondary="A3BECF",background="0B2532",border="37C5DE",bar="4BCDE7",gain="53FF91"}
+    for name,value in pairs(colors) do
+        if type(d.manualColors[name])~="string" then d.manualColors[name]=value end
+    end
+    d.separatorThickness=math.max(1,math.min(6,d.separatorThickness));
+    d.separatorBefore=math.max(0,math.min(24,d.separatorBefore));
+    d.separatorAfter=math.max(0,math.min(24,d.separatorAfter));
+    d.separatorLength=math.max(0.2,math.min(1,d.separatorLength));
+    d.spacerHeight=math.max(2,math.min(80,d.spacerHeight));
     if type(d.showDelta)~="boolean" then d.showDelta=true end
-    if type(d.deltaDuration)~="number" then d.deltaDuration=2.5 end
+    if type(d.deltaMode)~="string" or (d.deltaMode~="inline" and d.deltaMode~="float") then d.deltaMode="float" end
+    if type(d.deltaDuration)~="number" then d.deltaDuration=2.0 end
     d.deltaDuration=math.max(1,math.min(5,d.deltaDuration));
-    if type(d.iconSize)~="number" then d.iconSize=19 end
+    if d.iconTheme~="modern" and d.iconTheme~="classic" then d.iconTheme="modern" end
+    if type(d.iconSize)~="number" then d.iconSize=21 end
     if type(d.fontSize)~="number" then d.fontSize=12 end
     if type(d.opacity)~="number" then d.opacity=0.87 end
-    d.rowGap=math.max(0,math.min(12,d.rowGap));
-    d.iconSize=math.max(14,math.min(32,d.iconSize));
-    d.fontSize=math.max(9,math.min(18,d.fontSize));
+    d.rowGap=math.max(0,math.min(24,d.rowGap));
+    d.iconSize=math.max(12,math.min(40,d.iconSize));
+    d.fontSize=math.max(8,math.min(24,d.fontSize));
     d.opacity=math.max(0.1,math.min(1,d.opacity));
-    if d.effectMode~="off" and d.effectMode~="subtle" and d.effectMode~="normal" then d.effectMode="subtle" end
+    if d.effectMode~="off" and d.effectMode~="subtle" and d.effectMode~="normal" then d.effectMode="normal" end
     if type(d.glow)~="boolean" then d.glow=true end
     if type(d.milestoneFlash)~="boolean" then d.milestoneFlash=true end
     if type(d.iconBrightness)~="number" then d.iconBrightness=1 end
+    if d.valueFont~="clean" and d.valueFont~="classic" and d.valueFont~="fantasy" then d.valueFont="clean" end
+    if type(d.valueYOffset)~="number" then d.valueYOffset=0 end
+    d.valueYOffset=math.max(-8,math.min(8,d.valueYOffset));
     d.iconBrightness=math.max(0.4,math.min(1,d.iconBrightness));
     if d.accent~= "skin" and d.accent~="blue" and d.accent~="teal" and d.accent~="violet" and
-       d.accent~="amber" and d.accent~="rose" and d.accent~="white" then d.accent="skin" end
+       d.accent~="amber" and d.accent~="rose" and d.accent~="white" then d.accent="teal" end
     if type(d.pulse)~="boolean" then d.pulse=true end
     if d.statStyle~="icons" and d.statStyle~="text" and d.statStyle~="both" then d.statStyle="icons" end
     if type(d.statOrder)~="table" then d.statOrder={} end
@@ -83,19 +136,21 @@ function ABA.DB()
     if type(d.showProcDPS)~="boolean" then d.showProcDPS=true end
     if type(d.runHistory)~="table" then d.runHistory={} end
     if d.statPage~="core" and d.statPage~="advanced" and d.statPage~="order" and d.statPage~="presets" then d.statPage="core" end
+    if d.lookPage=="overview" then d.lookPage="layout" end
     if d.lookPage=="style" or d.lookPage=="colors" then d.lookPage="skins" end
+    if d.lookPage=="motion" then d.lookPage="effects" end
     if d.skin=="winged" then d.skin="solar" end
-    if d.lookPage~="layout" and d.lookPage~="skins" and d.lookPage~="frame" and
-       d.lookPage~="text" and d.lookPage~="effects" and d.lookPage~="bars" then d.lookPage="layout" end
+    if d.lookPage~="layout" and d.lookPage~="skins" and d.lookPage~="frame" and d.lookPage~="text" and d.lookPage~="bars" and d.lookPage~="effects" then d.lookPage="layout" end
     if d.statStyle ~= "icons" and d.statStyle ~= "text" and d.statStyle ~= "both" then d.statStyle = "icons" end
     if type(d.spellProfiles) ~= "table" then d.spellProfiles = {} end
     if d.spellVisible == nil then d.spellVisible = false end
     if d.spellCD == nil then d.spellCD = true end
     if d.spellDPS == nil then d.spellDPS = false end
     if d.showMilestones == nil then d.showMilestones = true end
-    if type(d.scale) ~= "number" or d.scale < 0.65 or d.scale > 1.50 then d.scale = 1 end
-    if type(d.hudWidth) ~= "number" or d.hudWidth < 90 or d.hudWidth > 700 then d.hudWidth = 232 end
-    if d.skin ~= "shadow" and d.skin ~= "glass" and d.skin ~= "classic" and d.skin ~= "bare" and d.skin ~= "arcane" and d.skin ~= "ember" and d.skin ~= "emerald" and d.skin ~= "frost" and d.skin ~= "solar" and d.skin ~= "neon" then d.skin = "shadow" end
+    if type(d.scale) ~= "number" or d.scale < 0.50 or d.scale > 2.00 then d.scale = 1 end
+    if type(d.hudWidth) ~= "number" or d.hudWidth < 90 or d.hudWidth > 1000 then d.hudWidth = 232 end
+    if d.skin ~= "shadow" and d.skin ~= "glass" and d.skin ~= "classic" and d.skin ~= "bare" and d.skin ~= "arcane" and d.skin ~= "ember" and d.skin ~= "emerald" and d.skin ~= "frost" and d.skin ~= "solar" and d.skin ~= "neon" then d.skin = "glass" end
+    if d.frameKind~="float" and d.frameKind~="soft" and d.frameKind~="box" and d.frameKind~="round" and d.frameKind~="softround" then d.frameKind="round" end
     if not d.v5Migrated then
         -- v0.4 stored a TOPLEFT offset relative to screen TOP; convert
         -- to the new absolute UIParent BOTTOMLEFT coordinate system.
@@ -181,7 +236,7 @@ function ABA.StatsValue(stat)
     if type(v) ~= "number" then return "--" end
     local k = stat.kind;
     if k == "percent" then return string.format("%.1f%%", v * 100) end
-    if k == "gain" then return string.format("%+.0f%%", (v - 1) * 100) end
+    if k == "gain" then return string.format("%.0f%%", (v - 1) * 100) end
     if k == "bonus" then return string.format("%+.0f%%", v * 100) end
     if k == "cooldown" then return string.format("%.1f%%", (1 - v) * 100) end
     if k == "critmult" then return string.format("%.0f%%", v * 100) end
@@ -192,13 +247,13 @@ function ABA.StatsValue(stat)
 end
 
 -- Change-preview formatting uses the underlying stat rather than a guessed percent.
--- Returns a temporary expression, e.g. "25% + 3.4%", then normal values resume.
+-- Value stays stable on the HUD; temporary gain text is rendered separately.
 function ABA.ValueFrom(stat,value)
     if type(value)~="number" then return "--" end
     local k=stat.kind;
     if k=="percent" then return string.format("%.1f%%",value*100) end
-    if k=="gain" then return string.format("%+.0f%%",(value-1)*100) end
-    if k=="bonus" then return string.format("%+.0f%%",value*100) end
+    if k=="gain" then return string.format("%.0f%%",(value-1)*100) end
+    if k=="bonus" then return string.format("%.0f%%",value*100) end
     if k=="cooldown" then return string.format("%.1f%%",(1-value)*100) end
     if k=="critmult" then return string.format("%.0f%%",value*100) end
     if k=="int" then return string.format("%.0f",value) end
@@ -220,14 +275,21 @@ function ABA.DisplayValue(stat)
     local v=type(AZS_STATS)=="table" and AZS_STATS[stat.key] or nil;
     if type(v)~="number" then return "--" end
     local d=ABA.DB();local x=ABA.statChanged[stat.key];
-    if d.showDelta and ABA.statsLive and d.effectMode~="off" and x and
-        type(x.at)=="number" and GetTime()-x.at>=0 and GetTime()-x.at<d.deltaDuration then
-        local old=ABA.ValueFrom(stat,x.before);
-        -- Suppress cosmetic .0 in the pre-change value.
-        old=string.gsub(old,"%.0%%","%%");
-        return old.." "..ABA.ChangeAmount(stat,x.before,x.after)
+    if d.showDelta and ABA.statsLive and d.effectMode~="off" and x and type(x.at)=="number" then
+        local age=GetTime()-x.at;
+        if age>=0 and age<d.deltaDuration then return ABA.ChangeAmount(stat,x.before,x.after) end
     end
     return ABA.ValueFrom(stat,v)
+end
+function ABA.DeltaPreview(stat)
+    local v=type(AZS_STATS)=="table" and AZS_STATS[stat.key] or nil;
+    if type(v)~="number" then return nil,nil end
+    local d=ABA.DB(); local x=ABA.statChanged[stat.key];
+    if not (d.showDelta and ABA.statsLive and d.effectMode~="off" and x and type(x.at)=="number") then return nil,nil end
+    local age=GetTime()-x.at;
+    if age<0 or age>=d.deltaDuration then return nil,nil end
+    local up=(stat.kind=="cooldown" and x.after<x.before) or (stat.kind~="cooldown" and x.after>x.before);
+    return ABA.ChangeAmount(stat,x.before,x.after),up
 end
 
 function ABA.RefreshChanges()

@@ -1,0 +1,8 @@
+YNX 0.14.1-beta
+
+- More accurate live HUD preview using current tracked stats and current layout/bar spacing choices.
+- Added column-gap customization.
+- Added quick layout-edit button in Settings header.
+- Drag the HUD from anywhere while editing; DONE returns to Settings.
+- Added live preview panels to STATS and SPELLS right-side cards.
+- Increased customization limits for size/spacing/scale.

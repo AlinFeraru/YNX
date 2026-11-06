@@ -1,0 +1,40 @@
+YNX v0.13.0-beta — Complete icon redesign / class-independent proc icons
+
+New visual artwork
+- All 29 tracked stat icons redesigned as consistent luminous fantasy UI tiles.
+- New color-coded modern artwork for Damage, Haste, Crit, Crit Damage, Luck, Echo and all advanced stats.
+- Dedicated symbols for Heal on Kill, Extra Lives, Boss Damage, Execute Damage, Melee Damage and Pets.
+- Updated modern icons across HUD, Settings tabs, stat options and theme previews.
+- New matching blue icon frames around observed spell and talent-proc icons.
+- The CLASSIC option is retained for anyone who wants the previous flat icon art.
+
+All-class proc handling
+- Resolves artwork from the meter itself when a valid texture path is supplied.
+- Uses learned spell/action-bar icons, actual native talent-tree entries when accessible,
+  current AZS_SPELLS names and known game catalog entries.
+- Refreshes talent icon lookup when the active class changes.
+- Uses a neutral modern YNX gear icon for unknown damage sources instead of
+  showing another class's ability or a generic soul gem.
+- Works with any playable class; there is no Druid-specific proc mapping.
+- Note: Some custom game procs may not expose an icon through these APIs.
+
+UX and compatibility fixes
+- Short gain-preview text replaces the number briefly (for example +3.0%), then
+  transitions back to the new total; it cannot overlap the adjacent column.
+- Stat grid width reserves room for the gain preview and does not expand when it triggers.
+- Two icon heartbeat pulses and highlight effects, with a 2-second default gain preview
+  on fresh installs. Existing SavedVariables keep their prior settings.
+- Fresh installations begin with a 2-column, 6-stat grid: Damage, Haste,
+  Crit Chance, Crit Damage, Luck and Echo.
+- Corrected an invalid font path from a previous beta.
+- Refactored Settings state to stay below the Lua main-chunk local-variable limit.
+- Preserved manual HUD/Settings positioning, profiles and existing configuration.
+
+Testing
+- All Lua modules pass a Lua 5.4 syntax-loader check (additional legacy restrictions
+  were checked separately; this does NOT replace testing in the WoW 1.12 client).
+- Simulator loaded each module, rendered the starter HUD, all 29 stat layouts,
+  all five frame styles and the Settings pages.
+- Simulated Mage, Hunter, Paladin, Warrior and unknown-source proc icon resolution.
+- Verified exported HUD functions stay within the older 32-upvalue limit.
+- Native Azeroth Survivors verification is still required before a stable release.
