@@ -1,0 +1,37 @@
+name: Synchronize verified v0.15.4 release source
+on:
+  push:
+    paths:
+      - '.github/workflows/sync-ynx-0154.yml'
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+      - name: Download and verify exact released installation ZIP
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --location --retry 3 --silent --show-error -o /tmp/ynx-release.zip "https://github.com/AlinFeraru/YNX/releases/download/v0.15.4/YNX.zip"
+          echo "bdcfa61522ded9c5665400f79c6c3013be4635d07bd3f27e1cc68af48f98ddac  /tmp/ynx-release.zip" | sha256sum --check -
+          mkdir -p /tmp/ynx-unpacked
+          unzip -q /tmp/ynx-release.zip -d /tmp/ynx-unpacked
+          test -f /tmp/ynx-unpacked/YNX/YNX.toc
+          test -f /tmp/ynx-unpacked/YNX/UI.lua
+          test -f /tmp/ynx-unpacked/YNX/ColorWheel.lua
+          grep -q '^## Version: 0.15.4$' /tmp/ynx-unpacked/YNX/YNX.toc
+      - name: Replace source with verified release, commit to main
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf YNX
+          cp -a /tmp/ynx-unpacked/YNX ./YNX
+          git add --all -- YNX
+          if git diff --cached --quiet; then echo "Already synchronized."; exit 0; fi
+          git -c user.name='github-actions[bot]' -c user.email='41898282+github-actions[bot]@users.noreply.github.com' commit -m "Sync YNX source with v0.15.4 release ZIP"
+          git push origin HEAD:main

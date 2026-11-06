@@ -1,72 +1,57 @@
 # YNX — Your Numbers eXposed
 
-**A free, customisable character-stat HUD for Azeroth Survivors.**  
-**Author:** Ynx · **Current version:** v0.10.1
+**Your build. Your stats. Your HUD.**
 
-YNX provides a compact overview of your character's stats, spells and observable damage procs. Choose what matters to your build, arrange it how you like, and keep your screen clean during a run.
+YNX is a customizable character-stat HUD for **Azeroth Survivors**. Track 29 stats, follow upgrades during runs, and design a compact HUD around your build.
 
-**[⬇ Download YNX v0.10.1 (install-ready ZIP)](https://raw.githubusercontent.com/AlinFeraru/YNX/main/downloads/YNX-Your-Numbers-eXposed-v0.10.1.zip)** · [Configuration guide](docs/CONFIGURATION.md) · [Troubleshooting](docs/TROUBLESHOOTING.md) · [Changelog](CHANGELOG.md)
+**Latest version: v0.15.4** · **Author: Ynx**
+
+[Download the latest release](https://github.com/AlinFeraru/YNX/releases/latest) · [SurvivorsForge](https://forge.rezondes.net/addons/ynx) · [Report an issue or suggest a feature](https://github.com/AlinFeraru/YNX/issues/new/choose)
 
 ## Features
 
-- **29 character statistics**, including critical chance, critical damage, haste, echo, armor, AoE, DoT and situational bonuses.
-- **Build presets and named profiles** for quick switching between different HUD configurations.
-- **Custom ordering**, stat separators and compact, grid or vertical layouts.
-- **Milestone bars** for critical chance, haste, echo, armor and movement speed, with configurable thickness and colours.
-- **Stat gain preview:** see an increase such as `25% +3.4%` highlighted temporarily before the value settles at `28.4%`.
-- **10 colour themes** and HUD frame styles: Float (borderless), Soft, Box and Round.
-- **Detailed LOOK settings:** layout, frame, font/icon sizing, colors, animation and bars.
-- **Spell and observable proc tracking.** Proc entries are taken from the game's meter, and appear only when that source has registered damage.
-- **Insights** for run information and spell performance using the data the game supplies.
-- **Free X/Y positioning** (v0.10.1): drag past old virtual screen boundaries or enter exact coordinates.
+- **29 character statistics:** Damage, Crit, Haste, Echo, Armor, movement, Luck, DoT bonuses, and more.
+- **Modern HUD art:** redesigned icons with an optional classic icon pack, adjustable fonts, sizes and spacing.
+- **Animated upgrades:** gain previews, icon pulses, colour flashes and smooth milestone bars.
+- **Appearance editor:** ten themes, visual frame styles, a built-in colour wheel, manual palettes and adjustable transparency.
+- **Layout controls:** vertical, horizontal and grid arrangements; custom ordering, dividers, spacers, row/column gaps and direct drag-to-position.
+- **Live HUD preview:** choose your stats and style, resize the HUD and try the gain animation from Settings.
+- **Build presets and profiles:** swap configurations without losing your preferred selections.
+- **Spell and proc tracking:** displays learned abilities and observable proc damage supplied by the game's meter, with class-independent icon matching.
+- **Milestone indicators:** distinguish personal build goals, Crit/Echo conversion thresholds and supported hard caps; avoid inventing soft caps.
 
 ## Install
 
-### Desktop (Windows/Linux)
+**SurvivorsForge:** Install YNX using the SurvivorsForge launcher.
 
-1. [Download the **v0.10.1 installer ZIP**](https://raw.githubusercontent.com/AlinFeraru/YNX/main/downloads/YNX-Your-Numbers-eXposed-v0.10.1.zip) (it contains one top-level `YNX` directory).
-2. Extract the `YNX` folder to `benilla-config/AddOns/YNX/` next to your Azeroth Survivors executable.
-3. Confirm that `benilla-config/AddOns/YNX/YNX.toc` exists (avoid an extra nested `YNX/YNX/` directory).
-4. Restart the game or re-enter the world so the add-on loads.
+**Manual:**
+1. Download the **`YNX.zip`** asset from the [latest GitHub release](https://github.com/AlinFeraru/YNX/releases/latest).
+2. Extract the `YNX` folder into `benilla-config/AddOns/`.
+3. Confirm `benilla-config/AddOns/YNX/YNX.toc` exists, then restart Azeroth Survivors.
 
-### Browser version
+**Updating:** Replace the old add-on folder, but keep your SavedVariables to retain profiles, colours and settings (`ABASettingsDB`).
 
-Open **Options → AddOns** in the game and install the [downloadable add-on ZIP](https://raw.githubusercontent.com/AlinFeraru/YNX/main/downloads/YNX-Your-Numbers-eXposed-v0.10.1.zip).
+## Getting started
 
-### Updating
+Click the HUD or type `/ynx settings`. The Settings window has four sections: **STATS**, **SPELLS**, **LOOK**, and **INSIGHTS**.
 
-Replace the old `YNX` add-on folder. **Keep your SavedVariables** if you want to preserve your profiles and settings. The database variable currently used by YNX is `ABASettingsDB`.
+To reposition the HUD, click **MOVE HUD** in Settings, drag the HUD to its new position, then click **DONE**. The LOOK pages provide layouts, themes, frame styles, text/icons, bars and animation effects.
 
-## How to use
+Commands: `/ynx settings`, `/ynx unlock`, `/ynx lock`, `/ynx reset`; type `/ynx` for more options.
 
-- **Click the HUD** to open Settings. The Settings window remains centered.
-- **STATS → CORE / ADVANCED:** choose what to track.
-- **STATS → ORDER:** move chosen stats and add optional separators.
-- **STATS → PRESETS:** apply build presets or save/load named configurations.
-- **SPELLS:** track spells and separately identified damage procs.
-- **LOOK → LAYOUT:** adjust arrangement, scale, width, and edit/move/resize controls. Enter signed X/Y coordinates or use +/- nudges.
-- **LOOK → FRAME:** choose FLOAT (no box), SOFT, BOX, or ROUND and adjust opacity/padding.
-- **LOOK → TEXT / EFFECTS / BARS:** adjust the HUD's text, icons, animations and milestone gauges.
+See the [configuration guide](docs/CONFIGURATION.md), [changelog](CHANGELOG.md), and [troubleshooting guide](docs/TROUBLESHOOTING.md).
 
-### Slash commands
+## Feedback and issues
 
-`/ynx settings` · `/ynx lock` · `/ynx unlock` · `/ynx reset` · `/ynx stop` · `/ynx export` · `/ynx import <code>` · `/ynx debug`
+**Found a bug, an incorrect stat threshold or a UI issue? Have a suggestion?**
+Please leave a comment on [SurvivorsForge](https://forge.rezondes.net/addons/ynx/comments) or [open a GitHub issue](https://github.com/AlinFeraru/YNX/issues/new/choose). Include your version, what happened, reproduction steps, and a screenshot or exact Lua error when possible.
 
-For an explanation of configuration options and what YNX can and cannot detect, see the [Configuration guide](docs/CONFIGURATION.md).
+## Technical notes
 
-## Known limitations
+YNX targets the game's **WoW 1.12 / Lua 5.0-compatible** add-on environment. Proc tracking is limited to damage sources exposed by Azeroth Survivors; it cannot identify every hidden effect or activation.
 
-- The game's add-on interface is based on **WoW 1.12 / Lua 5.0**, not modern WoW APIs.
-- Proc tracking can display **damage sources identified by the game's meter**; this does not mean every internal talent or proc activation can be observed.
-- Source data and UI capabilities may change with game updates.
-- This project is an independent community add-on, not an official Azeroth Survivors project.
+The [v0.15.4 release ZIP](https://github.com/AlinFeraru/YNX/releases/tag/v0.15.4) is the installable, security-scanned artifact. The `YNX/` folder in this repository contains add-on source and bundled game textures.
 
-## Issues and feedback
+YNX is an independent community project, not officially affiliated with Azeroth Survivors.
 
-Open a GitHub Issue with the game version, add-on version, what you clicked, expected/actual behaviour, and the exact Lua error if one appears. Screenshots help.
-
-## License
-
-YNX is provided **free for players to download and use**. A separate source-code licence for redistribution or derivative works has **not yet been selected** by the author. If you want to contribute code or republish modified versions, contact Ynx first.
-
-*The distributable game add-on lives in the `YNX/` folder. The root-level files are for project documentation.*
+**License:** No separate source-code redistribution/derivative-works licence has been selected. Contact the author before redistributing modified source.

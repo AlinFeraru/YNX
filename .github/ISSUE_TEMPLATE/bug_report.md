@@ -1,24 +1,26 @@
 ---
 name: Bug report
-about: Report a problem with YNX
+about: Something in YNX isn't working
 labels: bug
 ---
 
-**YNX version:** v0.10.1
+**YNX version:** v0.15.4
 
-**Azeroth Survivors version / client:**
+**Azeroth Survivors client/version (if known):**
 
 **What happened?**
 
-**Steps to reproduce**
+**Expected behaviour:**
+
+**How to reproduce:**
 1.
 2.
 3.
 
-**Expected result**
+**Exact Lua error, if present:**
 
-**Actual result / exact Lua error (if any)**
+**Does it happen with other UI add-ons disabled?** (if tested)
 
-**Screenshot (optional)**
+**Screenshots (optional):**
 
-Please do not share sensitive account data or SavedVariables containing personal information.
+Please do not include private account information or sensitive SavedVariables.

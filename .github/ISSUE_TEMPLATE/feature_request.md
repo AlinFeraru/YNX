@@ -1,13 +1,15 @@
 ---
 name: Feature request
-about: Suggest a YNX feature or visual refinement
+about: Suggest an improvement to YNX
 labels: enhancement
 ---
 
-**What would you like YNX to do?**
+**What problem are you experiencing?**
 
-**What problem would it solve?**
+**What change would help?**
 
-**Example / mockup (optional)**
+**Suggested appearance or behaviour:**
 
-**Anything that should stay unchanged?**
+**Mockup/screenshot (optional):**
+
+**Anything you would keep unchanged?**
