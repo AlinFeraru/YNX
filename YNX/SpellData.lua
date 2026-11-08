@@ -159,7 +159,7 @@ local function SampleVisibleTooltip()
     end
 end
 
-function ABA.RefreshTooltipData()
+function ABA.RefreshTooltipData(force)
     SampleVisibleTooltip();
     local spells = type(AZS_SPELLS) == "table" and AZS_SPELLS or {};
     local sig = "";
@@ -170,7 +170,7 @@ function ABA.RefreshTooltipData()
         end
     end
     local now = GetTime();
-    if sig == ABA.lastTooltipFingerprint and now - lastScan < 8 then return end
+    if not force and sig == ABA.lastTooltipFingerprint and now - lastScan < 8 then return end
     if now - lastScan > 60 then FindBookSpells(); FindActionSpells() end
     ABA.lastTooltipFingerprint = sig;
     lastScan = now;
@@ -197,9 +197,9 @@ function ABA.RefreshTooltipData()
     ABA.tooltipStatus = success .. "/" .. table.getn(spells) .. " spells readable";
 end
 
-function ABA.FindMeter(sp)
+function ABA.FindMeter(sp,sourceRows)
     local name = normalize(ABA.SpellName(sp));
-    local list = type(AZS_METER) == "table" and AZS_METER or nil;
+    local list = type(sourceRows)=="table" and sourceRows or (type(AZS_METER)=="table" and AZS_METER or nil);
     if not list and type(AZS_GetMeter) == "function" then
         local ok, lines = pcall(AZS_GetMeter);
         if ok and type(lines) == "table" then list = lines end

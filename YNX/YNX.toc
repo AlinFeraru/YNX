@@ -1,8 +1,9 @@
 ## Interface: 11200
 ## Title: YNX - Your Numbers eXposed
-## Notes: Customizable stat HUD, modern icon themes, animated milestone bars, movable settings.
-## Version: 0.15.4
+## Notes: Customizable stat HUD with spec themes, seven languages, polished menu art, profiles and live spell tracking.
+## Version: 0.16.10-beta-hotfix1
 ## SavedVariables: ABASettingsDB
+Locales.lua
 Core.lua
 Catalog.lua
 SpellData.lua

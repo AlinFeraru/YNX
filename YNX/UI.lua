@@ -1,4 +1,4 @@
--- YNX 0.15.4. Azeroth Survivors / WoW 1.12 Lua 5.0-compatible UI.
+-- YNX 0.16.10-beta. Azeroth Survivors / WoW 1.12 Lua 5.0-compatible UI.
 -- Never depend on modern WoW Mixin, _G, #, or mouse-button polling.
 local UIState={};
 local WHITE="Interface\\Buttons\\WHITE8X8";
@@ -8,10 +8,40 @@ local BUTTON_PLATE="Interface\\AddOns\\YNX\\Media\\button_plate.tga";
 local GAUGE_TRACK="Interface\\AddOns\\YNX\\Media\\gauge_track.tga";
 local GAUGE_FILL="Interface\\AddOns\\YNX\\Media\\gauge_fill.tga";
 local MODERN=MEDIA.."Modern\\";
+local ARCANE=MEDIA.."Arcane\\";
+-- All icon packs can provide idle and activated stat artwork. Paths remain
+-- identical across the HUD, preview and selection UI, so adding a new stat
+-- still only requires dropping the matching textures into its theme folder.
+local function StatIconPath(spec,theme,activated)
+    local key=spec.icon;
+    if theme=="arcane" then return ARCANE..key..(activated and "_active" or "")..".tga" end
+    if theme=="modern" then return MODERN..key..(activated and "_active" or "")..".tga" end
+    return MEDIA..key..(activated and "_active" or "")..".tga";
+end
+local function ApplyStatIcon(row,spec,d,activated)
+    local path=StatIconPath(spec,d.iconTheme,activated);
+    -- SetTexture is expensive in per-frame animation. Only swap on transitions.
+    if row.iconPath~=path then row.icon:SetTexture(path);row.iconPath=path end
+    if row.iconThemeApplied~=d.iconTheme then
+        if d.iconTheme=="classic" then row.icon:SetTexCoord(0.08,0.92,0.08,0.92)
+        else row.icon:SetTexCoord(0,1,0,1) end
+        row.iconThemeApplied=d.iconTheme;
+    end
+end
 -- Dragon UI offers a selectable font family.  Use similarly available native
 -- game fonts without depending on Dragon UI (or redistributing its font files).
 local CLEAN_FONT="Fonts\\ARIALN.TTF";
 local CLASSIC_FONT="Fonts\\FRIZQT__.TTF";
+UIState.LANGUAGE_FONT_CANDIDATES={
+    zh={"Fonts\\ARKai_T.TTF","Fonts\\bHEI00M.TTF"},
+    ko={"Fonts\\2002.TTF","Fonts\\2002B.TTF"},
+    ru={"Fonts\\ARIALN.TTF","Fonts\\MORPHEUS_CYR.TTF"}
+};
+function UIState.LanguageFontCandidates()
+    local d=ABASettingsDB;
+    local lang=type(d)=="table" and d.language or "en";
+    return UIState.LANGUAGE_FONT_CANDIDATES[lang];
+end
 local function SetYNXFont(obj,size,flags,heading)
     local function canUse(path,modifiers)
         local ok,loaded=pcall(obj.SetFont,obj,path,size,modifiers);
@@ -23,13 +53,23 @@ local function SetYNXFont(obj,size,flags,heading)
         return ok
     end
     flags=flags or "OUTLINE";
-    local face=heading and "Fonts\\MORPHEUS.TTF" or CLEAN_FONT;
-    if not canUse(face,flags) then
-        if not canUse(CLASSIC_FONT,flags) then canUse(CLASSIC_FONT,"") end
+    local faces=UIState.LanguageFontCandidates();local success=false;
+    if faces then
+        for i=1,table.getn(faces) do
+            if canUse(faces[i],flags) then success=true;break end
+        end
+    end
+    if not success then
+        local face=heading and "Fonts\\MORPHEUS.TTF" or CLEAN_FONT;
+        if not canUse(face,flags) then
+            if not canUse(CLASSIC_FONT,flags) then canUse(CLASSIC_FONT,"") end
+        end
     end
     if obj.SetShadowColor then obj:SetShadowColor(0,0,0,0.88) end
     if obj.SetShadowOffset then obj:SetShadowOffset(1,-1) end
 end
+-- Used once after SavedVariables are loaded by the localization layer.
+YNX_RefreshFont=SetYNXFont;
 local function HUDValueFontFace()
     local mode=(ABA and ABA.DB and ABA.DB().valueFont) or "clean";
     if mode=="fantasy" then return "Fonts\\MORPHEUS.TTF" end
@@ -133,15 +173,24 @@ local function PaintButton(b)
         if b.selected then c={t[1]*0.24+0.09,t[2]*0.23+0.14,t[3]*0.24+0.20}
         else c={t[1]*0.08+0.038,t[2]*0.06+0.077,t[3]*0.075+0.116} end
     end
-    if b.hover then b:SetBackdropColor(math.min(1,c[1]+0.075),math.min(1,c[2]+0.08),math.min(1,c[3]+0.08),0.99)
-    else b:SetBackdropColor(c[1],c[2],c[3],0.98) end
-    if b.selected and type(b.navTint)=="table" then b:SetBackdropBorderColor(b.navTint[1],b.navTint[2],b.navTint[3],1)
-    elseif b.selected then b:SetBackdropBorderColor(0.98,0.72,0.26,1)
-    elseif b.toggleOn==true then b:SetBackdropBorderColor(0.22,0.78,0.59,0.97)
-    else b:SetBackdropBorderColor(0.24,0.41,0.54,0.90) end
+    if b.artOnly then
+        b:SetBackdropColor(c[1],c[2],c[3],0)
+        b:SetBackdropBorderColor(0,0,0,0)
+        if b.bgArt then
+            if b.baseArtFile then b.bgArt:SetTexture(MEDIA.."UI\\"..(b.selected and b.selectedArtFile or b.baseArtFile)) end
+            b.bgArt:SetVertexColor(1,1,1,1);
+        end
+    else
+        if b.hover then b:SetBackdropColor(math.min(1,c[1]+0.075),math.min(1,c[2]+0.08),math.min(1,c[3]+0.08),0.99)
+        else b:SetBackdropColor(c[1],c[2],c[3],0.98) end
+        if b.selected and type(b.navTint)=="table" then b:SetBackdropBorderColor(b.navTint[1],b.navTint[2],b.navTint[3],1)
+        elseif b.selected then b:SetBackdropBorderColor(0.98,0.72,0.26,1)
+        elseif b.toggleOn==true then b:SetBackdropBorderColor(0.22,0.78,0.59,0.97)
+        else b:SetBackdropBorderColor(0.24,0.41,0.54,0.90) end
+    end
     if b.activeEdge then
         if b.selected or b.toggleOn==true then
-            b.activeEdge:SetVertexColor(b.selected and 0.33 or 0.22,b.selected and 0.84 or 0.94,b.selected and 1 or 0.63,1);b.activeEdge:Show()
+            if b.artOnly then b.activeEdge:SetVertexColor(1,1,1,0) else b.activeEdge:SetVertexColor(b.selected and 0.33 or 0.22,b.selected and 0.84 or 0.94,b.selected and 1 or 0.63,1) end;b.activeEdge:Show()
         else b.activeEdge:Hide() end
     end
 end
@@ -151,7 +200,7 @@ local function Button(p,title,w,h,onclick)
     b.activeEdge=b:CreateTexture(nil,"OVERLAY");b.activeEdge:SetTexture(WHITE);
     b.activeEdge:SetPoint("TOPLEFT",b,"TOPLEFT",0,-1);
     b.activeEdge:SetPoint("BOTTOMLEFT",b,"BOTTOMLEFT",0,1);b.activeEdge:SetWidth(3);b.activeEdge:Hide();
-    b.txt=Font(b,11,C.white,"CENTER");b.txt:SetAllPoints(b);b.txt:SetText(title or "");
+    b.txt=Font(b,11,C.white,"CENTER");b.txt:SetAllPoints(b);b.txt:SetText(YNX_L(title or ""));YNX_RegisterFont(b.txt,title or "");
     b:SetScript("OnClick",onclick);
     b:SetScript("OnEnter",function() b.hover=true;PaintButton(b) end);
     b:SetScript("OnLeave",function() b.hover=false;PaintButton(b) end);
@@ -167,7 +216,7 @@ local function TogglePaint(b,on)
     end
 end
 local function Label(p,text,x,y,n,color)
-    local f=Font(p,n or 11,color or C.grey);f:SetPoint("TOPLEFT",p,"TOPLEFT",x,-y);f:SetText(text);return f;
+    local f=Font(p,n or 11,color or C.grey);f:SetPoint("TOPLEFT",p,"TOPLEFT",x,-y);f:SetText(YNX_L(text));YNX_RegisterFont(f,text);return f;
 end
 local function Top(f)
     if type(AZS_SetOnTopOfScreens)=="function" then pcall(AZS_SetOnTopOfScreens,f,true) end
@@ -175,17 +224,41 @@ end
 local function Selected(b,on)
     if not b or not b.txt then return end
     b.selected=on==true;b.toggleOn=nil;PaintButton(b);
-    if on and type(b.navTint)=="table" then b.txt:SetTextColor(0.96,0.99,1)
+    if on and b.artOnly then b.txt:SetTextColor(1,0.90,0.62)
+    elseif on and type(b.navTint)=="table" then b.txt:SetTextColor(0.96,0.99,1)
     elseif on then b.txt:SetTextColor(1,0.81,0.42)
-    else b.txt:SetTextColor(0.78,0.85,0.91) end
+    else b.txt:SetTextColor(0.88,0.93,0.98) end
 end
+UIState.originalTooltipFonts={};
 local function Tip(self,title,lines)
     if not GameTooltip then return end
-    GameTooltip:SetOwner(self,"ANCHOR_RIGHT");GameTooltip:SetText(title,0.42,0.80,1);
-    for i=1,table.getn(lines or {}) do if lines[i] and lines[i]~="" then GameTooltip:AddLine(lines[i],0.93,0.94,0.91,1) end end
+    GameTooltip:SetOwner(self,"ANCHOR_RIGHT");GameTooltip:SetText(YNX_L(title),0.42,0.80,1);
+    for i=1,table.getn(lines or {}) do if lines[i] and lines[i]~="" then GameTooltip:AddLine(YNX_L(lines[i]),0.93,0.94,0.91,1) end end
+    local candidates=UIState.LanguageFontCandidates();
+    if candidates and GameTooltip.NumLines then
+        local count=GameTooltip:NumLines();
+        for i=1,count do
+            local left=getglobal and getglobal("GameTooltipTextLeft"..i) or nil;
+            if left then
+                if not UIState.originalTooltipFonts[left] and left.GetFont then
+                    local face,size,flags=left:GetFont();
+                    if face and type(size)=="number" then
+                        UIState.originalTooltipFonts[left]={face,size,flags or ""};
+                    end
+                end
+                SetYNXFont(left,11,"OUTLINE")
+            end
+        end
+    end
     GameTooltip:Show();
 end
-local function HideTip() if GameTooltip then GameTooltip:Hide() end end
+local function HideTip()
+    if GameTooltip then GameTooltip:Hide() end
+    for font,style in pairs(UIState.originalTooltipFonts) do
+        if font and font.SetFont then pcall(font.SetFont,font,style[1],style[2],style[3]) end
+    end
+    UIState.originalTooltipFonts={};
+end
 -- IMPORTANT: Lua 5.0 button callbacks must not directly capture a numeric/generic
 -- for-loop control variable. Bind a stable per-button argument through a
 -- function parameter, whose lifetime is independent of the loop iteration.
@@ -194,7 +267,7 @@ local function BindClick(value,action)
 end
 local function StatTip(row)
     local s=row.stat;if not s then return end
-    local lines={"Current: "..ABA.StatsValue(s),explanations[s.key] or ABA.milestoneInfo[s.key] or "Character statistic."};
+    local lines={YNX_L("Current: ")..ABA.StatsValue(s),explanations[s.key] or ABA.milestoneInfo[s.key] or "Character statistic."};
     local x=ABA.statChanged[s.key];
     local function delta(num)
         if s.kind=="percent" or s.kind=="gain" or s.kind=="cooldown" or s.kind=="critmult" or s.kind=="bonus" then
@@ -217,7 +290,7 @@ end
 local function SpellTip(row)
     local sp=row.spell;if not sp then return end
     local lines={"Rank "..tostring(sp.rank or "?")};
-    if type(sp.cdmax)=="number" then table.insert(lines,string.format("Cooldown %.2f sec",sp.cdmax)) end
+    if type(sp.cdmax)=="number" then table.insert(lines,string.format(YNX_L("Cooldown %.2f sec"),sp.cdmax)) end
     local m=ABA.FindMeter(sp);if m then table.insert(lines,string.format("Damage %.0f | DPS %.1f",m.dmg or 0,m.dps or 0)) end
     table.insert(lines,"Manage spells in Settings.");Tip(row,ABA.SpellName(sp),lines);
 end
@@ -226,7 +299,7 @@ end
 local hud=CreateFrame("Frame","YNX_MinimalHUD",UIParent);hud:SetWidth(232);hud:SetHeight(33);hud:SetFrameStrata("DIALOG");BG(hud);
 hud:SetMovable(true);hud:SetResizable(true);hud:SetMinResize(85,24);hud:EnableMouse(true);
 if hud.SetClampedToScreen then hud:SetClampedToScreen(false) end
-local settings=CreateFrame("Frame","YNX_Settings",UIParent);settings:SetFrameStrata("TOOLTIP");settings:SetWidth(1180);settings:SetHeight(650);settings:SetBackdrop({bgFile=WHITE,edgeFile=WHITE,edgeSize=2});settings:SetBackdropColor(0.017,0.046,0.078,0.985);settings:SetBackdropBorderColor(0.24,0.62,0.83,1);settings:Hide();
+local settings=CreateFrame("Frame","YNX_Settings",UIParent);settings:SetFrameStrata("TOOLTIP");settings:SetWidth(1180);settings:SetHeight(680);settings:SetBackdrop({bgFile=WHITE,edgeFile=WHITE,edgeSize=2});settings:SetBackdropColor(0.017,0.046,0.078,0.985);settings:SetBackdropBorderColor(0.24,0.62,0.83,1);settings:Hide();
 settings:SetMovable(true);settings:EnableMouse(true);
 if settings.SetClampedToScreen then settings:SetClampedToScreen(true) end
 local posX,posY,moveDrag,resizeDrag,moveHandle,resizeGrip;
@@ -390,6 +463,54 @@ local skinText={
  emerald={{0.52,1,0.77},{0.36,0.75,0.60}},frost={{0.59,0.89,1},{0.46,0.69,0.89}},
  solar={{1,0.83,0.40},{0.90,0.70,0.41}},neon={{0.48,1,0.91},{0.76,0.59,1}}
 };
+UIState.specThemes={
+    {code="none",name="NONE",class=nil,color=nil},
+    {code="arms",name="Arms Warrior",class="warrior",color={0.78,0.61,0.43}},
+    {code="fury",name="Fury Warrior",class="warrior",color={0.78,0.61,0.43}},
+    {code="protection_warrior",name="Protection Warrior",class="warrior",color={0.78,0.61,0.43}},
+    {code="holy_paladin",name="Holy Paladin",class="paladin",color={0.96,0.55,0.73}},
+    {code="protection_paladin",name="Protection Paladin",class="paladin",color={0.96,0.55,0.73}},
+    {code="retribution",name="Retribution Paladin",class="paladin",color={0.96,0.55,0.73}},
+    {code="beast_mastery",name="Beast Mastery Hunter",class="hunter",color={0.67,0.83,0.45}},
+    {code="marksmanship",name="Marksmanship Hunter",class="hunter",color={0.67,0.83,0.45}},
+    {code="survival",name="Survival Hunter",class="hunter",color={0.67,0.83,0.45}},
+    {code="assassination",name="Assassination Rogue",class="rogue",color={1.00,0.96,0.41}},
+    {code="combat",name="Combat Rogue",class="rogue",color={1.00,0.96,0.41}},
+    {code="subtlety",name="Subtlety Rogue",class="rogue",color={1.00,0.96,0.41}},
+    {code="discipline",name="Discipline Priest",class="priest",color={0.94,0.94,0.94}},
+    {code="holy_priest",name="Holy Priest",class="priest",color={0.94,0.94,0.94}},
+    {code="shadow",name="Shadow Priest",class="priest",color={0.94,0.94,0.94}},
+    {code="elemental",name="Elemental Shaman",class="shaman",color={0.00,0.44,0.87}},
+    {code="enhancement",name="Enhancement Shaman",class="shaman",color={0.00,0.44,0.87}},
+    {code="restoration_shaman",name="Restoration Shaman",class="shaman",color={0.00,0.44,0.87}},
+    {code="arcane_mage",name="Arcane Mage",class="mage",color={0.41,0.80,0.94}},
+    {code="fire",name="Fire Mage",class="mage",color={0.41,0.80,0.94}},
+    {code="frost_mage",name="Frost Mage",class="mage",color={0.41,0.80,0.94}},
+    {code="affliction",name="Affliction Warlock",class="warlock",color={0.58,0.51,0.79}},
+    {code="demonology",name="Demonology Warlock",class="warlock",color={0.58,0.51,0.79}},
+    {code="destruction",name="Destruction Warlock",class="warlock",color={0.58,0.51,0.79}},
+    {code="balance",name="Balance Druid",class="druid",color={1.00,0.49,0.04}},
+    {code="feral",name="Feral Druid",class="druid",color={1.00,0.49,0.04}},
+    {code="restoration_druid",name="Restoration Druid",class="druid",color={1.00,0.49,0.04}}
+};
+UIState.specThemeMap={};
+for i=1,table.getn(UIState.specThemes) do UIState.specThemeMap[UIState.specThemes[i].code]=UIState.specThemes[i] end
+function UIState.CurrentSpecTheme() return UIState.specThemeMap[(ABA and ABA.DB and ABA.DB().specTheme) or "none"] or UIState.specThemeMap.none end
+function UIState.EnsureThemeArt(frame)
+    if not frame or frame.themeArt then return frame and frame.themeArt end
+    local t=frame:CreateTexture(nil,"BACKGROUND");t:SetAllPoints(frame);t:SetTexCoord(0.02,0.98,0.02,0.98);t:Hide();frame.themeArt=t;return t
+end
+function UIState.ApplyThemeArt(frame,d,alpha)
+    local info=UIState.specThemeMap[d.specTheme or "none"];local art=UIState.EnsureThemeArt(frame);
+    -- FLOAT explicitly means no panel artwork. Spec themes remain selected but
+    -- only draw on framed HUD styles (SOFT, BOX and ROUND).
+    if not info or info.code=="none" or d.frameKind=="float" then
+        if art then art:Hide() end return
+    end
+    local path=MEDIA.."UI\\spec_"..info.code..".tga";
+    if art.ynxThemePath~=path then art:SetTexture(path);art.ynxThemePath=path end
+    art:SetVertexColor(1,1,1,alpha or 0.55);art:Show();
+end
 -- Real rounded corners built from nine-slice-like frame parts (not stretched corners).
 -- A pre-rendered 12px alpha mask lets the legacy client draw rounded geometry.
 local roundedParts={background={},stroke={}};
@@ -459,6 +580,8 @@ local function ResolvedFrameColors(d)
     local c={skin[1],skin[2],skin[3],skin[4],skin[5],skin[6],skin[7],skin[8]};
     if custom then c[1]=custom[1];c[2]=custom[2];c[3]=custom[3] end
     local accent=ABA.ManualColor("border") or accentColors[d.accent] or {skin[5],skin[6],skin[7]};
+    local spec=UIState.specThemeMap[d.specTheme or "none"];
+    if spec and spec.color and not ABA.ManualColor("border") then accent={spec.color[1],spec.color[2],spec.color[3]} end
     return c,accent;
 end
 local function ApplySkin()
@@ -479,6 +602,7 @@ local function ApplySkin()
         hud:SetBackdropColor(0,0,0,0);hud:SetBackdropBorderColor(0,0,0,0);
     end
     DrawRound(d,c,accent,opacity);
+    UIState.ApplyThemeArt(hud,d,0.56*opacity);
 end
 local function SortedSpecs()
     local result={};local d=ABA.DB();local used={};
@@ -507,8 +631,14 @@ local function CurrentSpells()
     end
     return result;
 end
+local function CurrentProcs()
+    local selected=ABA.ProcProfile();local any=false;
+    for _,value in pairs(selected) do if value then any=true;break end end
+    if not any then return {} end
+    return ABA.TrackedProcs();
+end
 local emptyHint=Font(hud,11,C.grey,"CENTER");emptyHint:SetPoint("CENTER",hud,"CENTER",0,0);
-emptyHint:SetText("YNX  -  click to configure");emptyHint:Hide();
+emptyHint:SetText(YNX_L("YNX  -  click to configure"));emptyHint:Hide();
 local statWidgets={};
 for i=1,table.getn(ABA.stats) do
     local row=CreateFrame("Button",nil,hud);row:SetWidth(90);row:SetHeight(28);row:EnableMouse(true);
@@ -599,19 +729,25 @@ local function DockSettings()
     settings:ClearAllPoints();settings:SetPoint("CENTER",UIParent,"CENTER",offX,offY);
 end
 ABA.DockSettings=DockSettings;
-local headerTex=settings:CreateTexture(nil,"ARTWORK");headerTex:SetTexture(MEDIA.."title_plate.tga");
-headerTex:SetPoint("TOPLEFT",settings,"TOPLEFT",6,-6);
-headerTex:SetPoint("TOPRIGHT",settings,"TOPRIGHT",-6,-6);headerTex:SetHeight(31);
-headerTex:SetVertexColor(1,1,1,0.98);
-SetYNXFont(Label(settings,"YNX   /   Your Numbers eXposed",14,11,15,C.blue),15,"OUTLINE",true);
+-- Header banner split into 4 power-of-two slices for reliable rendering on older clients.
+UIState.headerSlices={};
+do
+    local headerW=292;
+    for i=1,4 do
+        local tex=settings:CreateTexture(nil,"ARTWORK");
+        tex:SetTexture(MEDIA.."UI\\titlebar_"..i..".tga");
+        tex:SetPoint("TOPLEFT",settings,"TOPLEFT",6+(i-1)*headerW,-4);
+        tex:SetWidth(headerW);tex:SetHeight(60);
+        UIState.headerSlices[i]=tex;
+    end
+end
+UIState.headerTitle=Font(settings,19,C.gold,"LEFT");
+UIState.headerTitle:SetPoint("TOPLEFT",settings,"TOPLEFT",21,-14);
+UIState.headerTitle:SetWidth(720);UIState.headerTitle:SetText("");
+SetYNXFont(UIState.headerTitle,18,"OUTLINE",true);UIState.headerTitle:SetTextColor(0.98,0.84,0.38);
 local settingsDrag=CreateFrame("Button",nil,settings);
 settingsDrag:SetPoint("TOPLEFT",settings,"TOPLEFT",8,-7);
--- Keep the drag surface wholly OUTSIDE the title-bar controls. A 1080px
--- hitbox overlapped MOVE HUD after its width increased to 105px in v0.15.3;
--- that invisible Button could swallow clicks in the actual client.
--- Drag area: x=8..968. MOVE HUD begins at x=991 in the 1180px dialog.
-settingsDrag:SetWidth(960);settingsDrag:SetHeight(29);settingsDrag:EnableMouse(true);
-settingsDrag:SetFrameLevel(settings:GetFrameLevel()+1);
+settingsDrag:SetWidth(800);settingsDrag:SetHeight(54);settingsDrag:EnableMouse(true);
 settingsDrag:RegisterForDrag("LeftButton");
 settingsDrag:SetScript("OnDragStart",function()
     settingsDragging=true;settings:StartMoving();
@@ -630,7 +766,7 @@ end);
 settingsDrag:SetScript("OnEnter",function() Tip(settingsDrag,"Move YNX Settings",{"Drag this title bar to reposition the window.","Use R to return to screen centre."}) end);
 settingsDrag:SetScript("OnLeave",HideTip);
 local topAccent=settings:CreateTexture(nil,"ARTWORK");topAccent:SetTexture(WHITE);
-topAccent:SetPoint("TOPLEFT",settings,"TOPLEFT",7,-37);topAccent:SetPoint("TOPRIGHT",settings,"TOPRIGHT",-7,-37);topAccent:SetHeight(2);
+topAccent:SetPoint("TOPLEFT",settings,"TOPLEFT",7,-63);topAccent:SetPoint("TOPRIGHT",settings,"TOPRIGHT",-7,-63);topAccent:SetHeight(2);
 topAccent:SetVertexColor(0.91,0.64,0.25,0.95);
 local resetMenu=Button(settings,"R",30,27,function()
     local d=ABA.DB();d.settingsOffsetX=0;d.settingsOffsetY=0;DockSettings();
@@ -641,19 +777,87 @@ local moveMenu=Button(settings,"MOVE HUD",105,27,function()
     local d=ABA.DB();d.editLayout=true;d.editMove=true;d.editResize=true;
     settings:Hide();RefreshHandles();if ABA.Update then ABA.Update(true) end
 end);moveMenu:SetPoint("TOPRIGHT",settings,"TOPRIGHT",-84,-6);
--- All three title-bar actions take priority over any draggable header layer.
-moveMenu:SetFrameLevel(settingsDrag:GetFrameLevel()+2);
-resetMenu:SetFrameLevel(settingsDrag:GetFrameLevel()+2);
 moveMenu.navTint={0.25,0.95,0.77};moveMenu.selected=true;PaintButton(moveMenu);
 SetYNXFont(moveMenu.txt,12,"OUTLINE");moveMenu.txt:SetTextColor(0.86,1,0.95);
 moveMenu:SetScript("OnEnter",function() Tip(moveMenu,"Edit HUD layout",{"Close settings and enter direct move/resize mode.","Drag the HUD from anywhere, then click DONE on the HUD to return."}) end);
 moveMenu:SetScript("OnLeave",HideTip);
 local exit=Button(settings,"X",30,27,function() settings:Hide() end);exit:SetPoint("TOPRIGHT",settings,"TOPRIGHT",-8,-6);
-exit:SetFrameLevel(settingsDrag:GetFrameLevel()+2);
 exit.navTint={0.95,0.33,0.38};PaintButton(exit);
 resetMenu.navTint={0.45,0.78,1};PaintButton(resetMenu);
+local function SetButtonArt(button,file,alpha)
+    if not button or not file then return end
+    if not button.bgArt then
+        local t=button:CreateTexture(nil,"ARTWORK");button.bgArt=t;
+    end
+    button.bgArt:ClearAllPoints();
+    local inset=button.artOnly and 1 or 0;button.bgArt:SetPoint("TOPLEFT",button,"TOPLEFT",inset,-inset);button.bgArt:SetPoint("BOTTOMRIGHT",button,"BOTTOMRIGHT",-inset,inset);
+    button.baseArtFile=file;button.selectedArtFile=string.gsub(file,"%.tga$","_selected.tga");
+    button.bgArt:SetTexture(MEDIA.."UI\\"..(button.selected and button.selectedArtFile or button.baseArtFile));
+    button.bgArt:SetVertexColor(1,1,1,alpha or 1);
+    if button.artOnly then
+        button:SetBackdropColor(0,0,0,0);button:SetBackdropBorderColor(0,0,0,0);
+    end
+end
+local function ApplyPanelBackground(frame,file,alpha)
+    if not frame or not file then return end
+    local tex=frame:CreateTexture(nil,"BORDER");
+    tex:SetTexture(MEDIA.."UI\\"..file);tex:SetAllPoints(frame);
+    tex:SetVertexColor(1,1,1,alpha or 0.16);
+    frame.bgArt=tex;return tex;
+end
+
+-- Main title-bar language chooser: concise current-code button, 7-language popup.
+do
+local languagePopup=nil;
+local langButton=Button(settings,"EN v",108,27,function()
+    if languagePopup then
+        if languagePopup:IsShown() then languagePopup:Hide() else languagePopup:Show() end
+    end
+end);
+langButton:SetPoint("TOPRIGHT",settings,"TOPRIGHT",-179,-6);
+langButton.navTint={0.45,0.76,0.98};PaintButton(langButton);
+langButton.flag=langButton:CreateTexture(nil,"OVERLAY");langButton.flag:SetWidth(19);langButton.flag:SetHeight(13);langButton.flag:SetTexCoord(0,1,0.1875,0.8125);langButton.flag:SetPoint("LEFT",langButton,"LEFT",10,0);
+langButton.txt:ClearAllPoints();langButton.txt:SetPoint("LEFT",langButton.flag,"RIGHT",7,0);langButton.txt:SetPoint("RIGHT",langButton,"RIGHT",-7,0);SetYNXFont(langButton.txt,10,"OUTLINE");
+langButton:SetScript("OnEnter",function()
+    Tip(langButton,"Interface language",{"Choose a language for YNX menus, descriptions and tooltips.","Your choice is saved. The interface reloads to apply it."})
+end);
+langButton:SetScript("OnLeave",HideTip);
+languagePopup=CreateFrame("Frame",nil,settings);
+languagePopup:SetWidth(168);languagePopup:SetHeight(204);
+languagePopup:SetPoint("TOPRIGHT",langButton,"BOTTOMRIGHT",0,-3);
+languagePopup:SetFrameStrata("TOOLTIP");languagePopup:SetFrameLevel(settings:GetFrameLevel()+45);
+languagePopup:SetBackdrop({bgFile=WHITE,edgeFile=WHITE,edgeSize=2});
+languagePopup:SetBackdropColor(0.025,0.055,0.090,1);
+languagePopup:SetBackdropBorderColor(0.38,0.77,0.96,1);
+local shortLangNames={en="English",es="Español",fr="Français",de="Deutsch",zh="Chinese",ru="Russian",ko="Korean"};
+for i,info in ipairs(YNXLanguageNames) do
+    local code=info[1];
+    local button=Button(languagePopup,shortLangNames[code] or info[2],156,24,BindClick(code,function(chosen)
+        languagePopup:Hide();
+        local d=ABA.DB();if d.language==chosen then return end
+        d.language=chosen;
+        if type(ReloadUI)=="function" then ReloadUI()
+        else ABA.Message("Language saved. Type /reload to apply it.") end
+    end));
+    button:SetPoint("TOPLEFT",languagePopup,"TOPLEFT",6,-(6+(i-1)*28));
+    button:SetFrameLevel(languagePopup:GetFrameLevel()+2);
+    button.flag=button:CreateTexture(nil,"OVERLAY");button.flag:SetWidth(19);button.flag:SetHeight(13);button.flag:SetTexCoord(0,1,0.1875,0.8125);button.flag:SetPoint("LEFT",button,"LEFT",10,0);button.flag:SetTexture(MEDIA.."UI\\flag_"..code..".tga");
+    button.txt:SetJustifyH("LEFT");button.txt:ClearAllPoints();
+    button.txt:SetPoint("LEFT",button.flag,"RIGHT",7,0);
+    button.txt:SetWidth(116);SetYNXFont(button.txt,10,"OUTLINE");
+end
+languagePopup:Hide();
+function UIState.UpdateLanguageButton()
+    local d=ABA.DB();local code=(d.language or "en");
+    langButton.txt:SetText(string.upper(code).." v");
+    if langButton.flag then langButton.flag:SetTexture(MEDIA.."UI\\flag_"..code..".tga") end
+end
+UIState.languagePopup=languagePopup;
+end
 local sectionKeys={"STATS","SPELLS","LOOK","INSIGHTS"};local tabButtons,pages={},{};local currentTab="LOOK";
 local function SelectTab(k)
+    if UIState.languagePopup then UIState.languagePopup:Hide() end
+    if UIState.specThemePopup then UIState.specThemePopup:Hide() end
     currentTab=k;
     for i=1,table.getn(sectionKeys) do
         local id=sectionKeys[i];if id==k then pages[id]:Show() else pages[id]:Hide() end
@@ -662,15 +866,15 @@ local function SelectTab(k)
     if ABA.UpdateSettings then ABA.UpdateSettings() end
 end
 for i=1,4 do
-    local k=sectionKeys[i];local b=Button(settings,k,280,30,BindClick(k,SelectTab));
-    b:SetPoint("TOPLEFT",settings,"TOPLEFT",9+(i-1)*291,-48);tabButtons[i]=b;
-    local ico=b:CreateTexture(nil,"ARTWORK");ico:SetTexture(MODERN..({"dmg","echo","area","crit"})[i]..".tga");
-    ico:SetWidth(19);ico:SetHeight(19);ico:SetPoint("LEFT",b,"LEFT",11,0);
-    b.txt:ClearAllPoints();b.txt:SetPoint("LEFT",ico,"RIGHT",10,0);
-    b.txt:SetJustifyH("LEFT");b.txt:SetWidth(200);
+    local k=sectionKeys[i];local b=Button(settings,k,280,40,BindClick(k,SelectTab));
+    b:SetPoint("TOPLEFT",settings,"TOPLEFT",9+(i-1)*291,-74);tabButtons[i]=b;
+    b.txt:ClearAllPoints();b.txt:SetAllPoints(b);
+    b.txt:SetJustifyH("CENTER");b.txt:SetWidth(240);SetYNXFont(b.txt,16,"OUTLINE",true);
+    b.artOnly=true;
     b.navTint=({{1,0.73,0.31},{0.70,0.43,0.96},{0.31,0.84,0.98},{0.44,0.90,0.70}})[i];PaintButton(b);
-    pages[k]=CreateFrame("Frame",nil,settings);pages[k]:SetPoint("TOPLEFT",settings,"TOPLEFT",9,-87);
-    pages[k]:SetWidth(1162);pages[k]:SetHeight(551);pages[k]:Hide();
+    SetButtonArt(b,({"menu_stats.tga","menu_spells.tga","menu_look.tga","menu_insights.tga"})[i],0.98);
+    pages[k]=CreateFrame("Frame",nil,settings);pages[k]:SetPoint("TOPLEFT",settings,"TOPLEFT",9,-119);
+    pages[k]:SetWidth(1162);pages[k]:SetHeight(545);pages[k]:Hide();
     pages[k]:SetBackdrop({bgFile=WHITE,edgeFile=WHITE,edgeSize=1});
     local panelShade=({STATS={0.023,0.064,0.069},SPELLS={0.035,0.044,0.077},LOOK={0.017,0.057,0.083},INSIGHTS={0.020,0.066,0.064}})[k];
     pages[k]:SetBackdropColor(panelShade[1],panelShade[2],panelShade[3],0.91);
@@ -678,33 +882,39 @@ for i=1,4 do
     local rail=pages[k]:CreateTexture(nil,"BACKGROUND");rail:SetTexture(WHITE);
     rail:SetPoint("TOPLEFT",pages[k],"TOPLEFT",0,0);rail:SetWidth(1162);rail:SetHeight(2);
     rail:SetVertexColor(0.94,0.72,0.32,0.9);
+    ApplyPanelBackground(pages[k],"bg_"..string.lower(k)..".tga",0.65);
 end
 local function Subpage(parent,key,x,width,click)
-    local b=Button(parent,key,width,23,click);b:SetPoint("TOPLEFT",parent,"TOPLEFT",x,-2);
-    local file=nil;
-    if key=="CORE" or key=="LAYOUT" or key=="ABILITIES" then file="dmg"
-    elseif key=="FRAME" or key=="BARS" then file="area"
-    elseif key=="ADVANCED" or key=="EFFECTS" then file="echo"
-    elseif key=="PRESETS" or key=="SKINS" then file="cm"
-    elseif key=="ORDER" or key=="TEXT" or key=="TRENDS" then file="spd"
-    elseif key=="PROCS" or key=="SPELLS" then file="crit"
-    elseif key=="COLORS" or key=="NOTES" then file="area"
+    local b=Button(parent,key,width,30,click);b:SetPoint("TOPLEFT",parent,"TOPLEFT",x,-2);
+    local art=nil;local hue={0.38,0.72,0.90};
+    if key=="CORE" then art="submenu_core.tga";hue={1,0.77,0.38}
+    elseif key=="ADVANCED" then art="submenu_advanced.tga";hue={0.72,0.43,0.97}
+    elseif key=="ORDER" then art="submenu_order.tga";hue={0.42,0.82,0.85}
+    elseif key=="PRESETS" or key=="SETS" then art="submenu_presets.tga";hue={0.96,0.58,0.85}
+    elseif key=="LAYOUT" then art="submenu_layout.tga";hue={0.35,0.85,0.98}
+    elseif key=="THEMES" then art="submenu_themes.tga";hue={0.88,0.60,1}
+    elseif key=="FRAME" then art="submenu_frame.tga";hue={0.78,0.88,1}
+    elseif key=="TEXT" then art="submenu_text.tga";hue={0.56,0.82,1}
+    elseif key=="BARS" then art="submenu_bars.tga";hue={0.45,0.94,0.79}
+    elseif key=="FX" or key=="EFFECTS" then art="submenu_effects.tga";hue={0.86,0.56,1}
+    elseif key=="ABILITIES" then art="submenu_abilities.tga";hue={1,0.69,0.41}
+    elseif key=="PROCS" then art="submenu_procs.tga";hue={1,0.58,0.84}
+    elseif key=="SPELLS" then art="submenu_spells.tga";hue={0.73,0.53,1}
+    elseif key=="RUN" then art="submenu_run.tga";hue={0.46,0.92,0.74}
+    elseif key=="TRENDS" then art="submenu_trends.tga";hue={0.51,0.86,1}
+    elseif key=="NOTES" then art="submenu_notes.tga";hue={1,0.86,0.55}
     end
-    if file then
-        local icon=b:CreateTexture(nil,"ARTWORK");icon:SetTexture(MODERN..file..".tga");
-        icon:SetWidth(13);icon:SetHeight(13);icon:SetPoint("LEFT",b,"LEFT",4,0);
-        b.txt:ClearAllPoints();b.txt:SetPoint("LEFT",icon,"RIGHT",7,0);
-        b.txt:SetJustifyH("LEFT");b.txt:SetWidth(width-34);
-        local navHues={dmg={1,0.77,0.38},echo={0.72,0.43,0.97},area={0.29,0.79,1},crit={0.96,0.58,0.85},cm={0.92,0.58,0.98},spd={0.42,0.82,0.85}};
-        b.navTint=navHues[file] or {0.38,0.72,0.90};PaintButton(b);
-    end
+    b.artOnly=true;b.navTint=hue;PaintButton(b);
+    if art then SetButtonArt(b,art,0.99) end
+    b.txt:ClearAllPoints();b.txt:SetAllPoints(b);b.txt:SetJustifyH("CENTER");SetYNXFont(b.txt,13,"OUTLINE",true);
+    if key=="CORE" or key=="ADVANCED" or key=="ORDER" or key=="PRESETS" or key=="SETS" then UIState.themedSubpages=UIState.themedSubpages or {}; table.insert(UIState.themedSubpages,b) end
     return b;
 end
 local function DimButton(parent,text,x,y,w,fn)
     local b=Button(parent,text,w,25,fn);b:SetPoint("TOPLEFT",parent,"TOPLEFT",x,-y);return b;
 end
 local function MakeCheck(b,label)
-    b:SetHeight(29);b.txt:SetText(label);b.txt:ClearAllPoints();b.txt:SetPoint("LEFT",b,"LEFT",35,0);
+    b:SetHeight(29);b.txt:SetText(YNX_L(label));YNX_RegisterFont(b.txt,label);b.txt:ClearAllPoints();b.txt:SetPoint("LEFT",b,"LEFT",35,0);
     b.txt:SetJustifyH("LEFT");b.txt:SetWidth(b:GetWidth()-42);
     b.checkBackground=b:CreateTexture(nil,"ARTWORK");b.checkBackground:SetTexture(WHITE);
     b.checkBackground:SetPoint("LEFT",b,"LEFT",10,0);b.checkBackground:SetWidth(17);b.checkBackground:SetHeight(17);
@@ -791,8 +1001,7 @@ local function PopulateGhostHUD(host,stats,availableWidth,forceHeight)
     for i=1,table.getn(host.rows) do
         local row=host.rows[i]; local spec=stats[i];
         if spec then
-            row.stat=spec; row.icon:SetTexture((d.iconTheme=="modern" and MODERN or MEDIA)..spec.icon..".tga");
-            row.icon:SetTexCoord(d.iconTheme=="modern" and 0 or 0.08,d.iconTheme=="modern" and 1 or 0.92,d.iconTheme=="modern" and 0 or 0.08,d.iconTheme=="modern" and 1 or 0.92);
+            row.stat=spec; ApplyStatIcon(row,spec,d,false);
             row.icon:SetWidth(size); row.icon:SetHeight(size); row.halo:SetWidth(size+7); row.halo:SetHeight(size+7);
             if d.iconTheme=="modern" and d.frameKind~="float" then row.halo:SetVertexColor(0.28,0.72,0.95,0.38);row.halo:Show() else row.halo:Hide() end
             local lum=d.iconBrightness; row.icon:SetVertexColor(lum,lum,lum,1);
@@ -801,7 +1010,7 @@ local function PopulateGhostHUD(host,stats,availableWidth,forceHeight)
             SetHUDValueFont(row.measure,d.fontSize,"OUTLINE"); row.measure:SetText(ABA.ValueFrom(spec,(type(AZS_STATS)=="table" and AZS_STATS[spec.key]) or nil));
             row.value:SetTextColor(currentText[1],currentText[2],currentText[3]);
             row.name:SetTextColor(currentSecondary[1],currentSecondary[2],currentSecondary[3]);
-            row.name:SetText(spec.short); SetYNXFont(row.name,math.max(9,d.fontSize-2),"OUTLINE");
+            row.name:SetText(YNX_L(spec.short)); SetYNXFont(row.name,math.max(9,d.fontSize-2),"OUTLINE");
             local required=PreviewRowWidth(row,spec,d); row.required=required; requiredCell=math.max(requiredCell,required);
         else row.stat=nil; row:Hide() end
     end
@@ -848,31 +1057,34 @@ end
 
 -- STATS page: Core, Advanced, Presets. 29 stats, each individually toggled.
 local statPage="core";local statPane=pages.STATS;
-local statTabButtons={};
+UIState.statTabButtons={};
 for i,key in ipairs({"core","advanced","order","presets"}) do
     local b=Subpage(statPane,string.upper(key),2+(i-1)*93,89,BindClick(key,function(which)
         statPage=which;ABA.DB().statPage=which;ABA.Update(true)
     end));
-    statTabButtons[i]=b;
+    -- Compact captions stay readable inside the 89px tabs in every language.
+    b.txt:SetText(YNX_L(({"CORE","ADV.","ORDER","SETS"})[i]));
+    YNX_RegisterFont(b.txt,({"CORE","ADV.","ORDER","SETS"})[i]);
+    UIState.statTabButtons[i]=b;
 end
 local statGroups={};for _,key in ipairs({"core","advanced","order","presets"}) do
-    local page=CreateFrame("Frame",nil,statPane);page:SetPoint("TOPLEFT",statPane,"TOPLEFT",0,-35);page:SetWidth(368);page:SetHeight(392);page:Hide();statGroups[key]=page;
+    local page=CreateFrame("Frame",nil,statPane);page:SetPoint("TOPLEFT",statPane,"TOPLEFT",0,-35);page:SetWidth(368);page:SetHeight(392);page:Hide();statGroups[key]=page;ApplyPanelBackground(page,"bg_stats_"..key..".tga",0.54);
 end
-local statSelect={};local statSelectByKey={};local tierCounts={core=0,advanced=0};
+local statSelect={};UIState.statSelectByKey={};UIState.tierCounts={core=0,advanced=0};
 for i=1,table.getn(ABA.stats) do
-    local s=ABA.stats[i];local tier=s.tier;tierCounts[tier]=tierCounts[tier]+1;
-    local index=tierCounts[tier];local col=math.mod(index-1,2);local row=math.floor((index-1)/2);
+    local s=ABA.stats[i];local tier=s.tier;UIState.tierCounts[tier]=UIState.tierCounts[tier]+1;
+    local index=UIState.tierCounts[tier];local col=math.mod(index-1,2);local row=math.floor((index-1)/2);
     local page=statGroups[tier];local x=col*184;local y=row*29+2;
     local b=Button(page,"",181,26,BindClick(s,function(spec)
-        ABA.DB().activePreset="custom";ABA.SetStat(spec.key,not ABA.IsEnabled(spec));
+        local d=ABA.DB();d.activePreset="custom";d.selectedPresets={};ABA.SetStat(spec.key,not ABA.IsEnabled(spec));
     end));
     b:SetPoint("TOPLEFT",page,"TOPLEFT",x,-y);
-    b.icon=b:CreateTexture(nil,"ARTWORK");b.icon:SetWidth(19);b.icon:SetHeight(19);b.icon:SetTexture(MODERN..s.icon..".tga");b.icon:SetPoint("LEFT",b,"LEFT",3,0);
+    b.icon=b:CreateTexture(nil,"ARTWORK");b.icon:SetWidth(19);b.icon:SetHeight(19);b.icon:SetTexture(StatIconPath(s,ABA.DB().iconTheme,false));b.icon:SetPoint("LEFT",b,"LEFT",3,0);
     b.label=Font(b,10,C.grey);b.label:SetPoint("LEFT",b,"LEFT",25,0);b.label:SetWidth(121);
     b.state=Font(b,9,C.grey,"RIGHT");b.state:SetWidth(27);b.state:SetPoint("RIGHT",b,"RIGHT",-5,0);
     b:SetScript("OnEnter",function() Tip(b,s.name,{ABA.StatsValue(s),explanations[s.key] or ABA.milestoneInfo[s.key] or "Click to track or hide.","Change ordering and add dividers in ORDER."}) end);
     b:SetScript("OnLeave",HideTip);
-    statSelect[i]={btn=b,spec=s};statSelectByKey[s.key]=b;
+    statSelect[i]={btn=b,spec=s};UIState.statSelectByKey[s.key]=b;
 end
 Label(statGroups.core,"Select which stats appear; arrange them in ORDER.",5,306,10,C.grey);
 Label(statGroups.advanced,"Advanced bonuses may remain 0 until upgraded.",5,157,10,C.grey);
@@ -916,22 +1128,25 @@ for i=1,8 do
     end);b:SetScript("OnLeave",HideTip);
     b:Hide();orderRows[i]=b;
 end
-local orderPrev=DimButton(orderPane,"< BACK",5,316,104,function() orderIndex=math.max(1,orderIndex-1);ABA.Update(true) end);
-local orderNext=DimButton(orderPane,"NEXT >",257,316,105,function() orderIndex=orderIndex+1;ABA.Update(true) end);
-local orderPageLabel=Label(orderPane,"",158,322,11,C.gold);
-local gapRow=StepRow(orderPane,"ROW SPACING",349,"rowGap",1,0,24,function(v) return tostring(v).." px" end);
+UIState.orderPrev=DimButton(orderPane,"< BACK",5,316,104,function() orderIndex=math.max(1,orderIndex-1);ABA.Update(true) end);
+UIState.orderNext=DimButton(orderPane,"NEXT >",257,316,105,function() orderIndex=orderIndex+1;ABA.Update(true) end);
+UIState.orderPageLabel=Label(orderPane,"",158,322,11,C.gold);
+UIState.gapRow=StepRow(orderPane,"ROW SPACING",349,"rowGap",1,0,24,function(v) return tostring(v).." px" end);
 local presetPage=statGroups.presets;
-Label(presetPage,"Choose a monitoring preset (not an automatic build advisor):",4,2,10,C.grey);
-local presetButtons={};
+Label(presetPage,"Click one or more stat sets to combine them. Click again to remove:",4,2,10,C.grey);
+UIState.presetButtons={};
 for i=1,table.getn(ABA.presets) do
     local spec=ABA.presets[i];local col=math.mod(i-1,2);local row=math.floor((i-1)/2);
-    local b=DimButton(presetPage,spec.name,4+col*184,25+row*36,178,BindClick(spec.key,ABA.ApplyPreset));
-    presetButtons[i]={btn=b,key=spec.key};
+    local b=DimButton(presetPage,spec.name,4+col*184,25+row*36,178,BindClick(spec.key,ABA.TogglePreset));
+    local previewFiles={allstats="preset_all.tga",crit="preset_crit.tga",echo="preset_hasteecho.tga",tank="preset_tank.tga",dot="preset_dot.tga",aoe="preset_aoe.tga",boss="preset_boss.tga",farm="preset_farm.tga",balance="preset_balanced.tga"};
+    local img=b:CreateTexture(nil,"BACKGROUND");img:SetTexture(MEDIA.."UI\\"..(previewFiles[spec.key] or "preset_balanced.tga"));img:SetPoint("LEFT",b,"LEFT",6,0);img:SetWidth(28);img:SetHeight(24);b.preview=img;
+    b.txt:ClearAllPoints();b.txt:SetPoint("LEFT",img,"RIGHT",6,0);b.txt:SetJustifyH("LEFT");b.txt:SetWidth(138);
+    UIState.presetButtons[i]={btn=b,key=spec.key};
 end
-Label(presetPage,"NAMED PROFILES  |  save current tracked stats + HUD order",5,178,10,C.gold);
-local slotButtons={};
+Label(presetPage,"NAMED PROFILES  |  save current tracked stats + HUD order",5,214,10,C.gold);
+UIState.slotButtons={};
 local function ProfileRow(slot)
-    local d=ABA.DB();local y=201+(slot-1)*48;
+    local d=ABA.DB();local y=237+(slot-1)*48;
     Label(presetPage,tostring(slot)..".",5,y+9,11,C.gold);
     local edit=CreateFrame("EditBox",nil,presetPage);
     edit:SetWidth(155);edit:SetHeight(23);edit:SetPoint("TOPLEFT",presetPage,"TOPLEFT",29,-y);
@@ -958,8 +1173,8 @@ local function ProfileRow(slot)
     load:SetScript("OnLeave",HideTip);
     return {edit=edit,save=save,load=load,status=status,slot=slot};
 end
-for i=1,3 do slotButtons[i]=ProfileRow(i) end
-local share=DimButton(presetPage,"SHARE CURRENT STATS  /ynx export",4,355,359,function()
+for i=1,3 do UIState.slotButtons[i]=ProfileRow(i) end
+local share=DimButton(presetPage,"SHARE CURRENT STATS  /ynx export",4,391,359,function()
     ABA.Message("Preset code: "..ABA.ExportCode());
 end);
 share:SetScript("OnEnter",function() Tip(share,"Share a preset",{
@@ -972,10 +1187,10 @@ for i,k in ipairs({"abilities","procs"}) do
         spellPage=page;ABA.Update(true)
     end));spellPageButtons[i]={btn=b,key=k};
     local pg=CreateFrame("Frame",nil,spPane);pg:SetWidth(368);pg:SetHeight(396);
-    pg:SetPoint("TOPLEFT",spPane,"TOPLEFT",0,-31);pg:Hide();spellPages[k]=pg;
+    pg:SetPoint("TOPLEFT",spPane,"TOPLEFT",0,-31);pg:Hide();spellPages[k]=pg;ApplyPanelBackground(pg,"bg_spells_"..k..".tga",0.54);
 end
 local abilityPane=spellPages.abilities;
-Label(abilityPane,"OWNED ABILITIES  |  choose which ones appear on HUD",4,5,10,C.gold);
+Label(abilityPane,"ABILITIES  |  choose which spell icons appear on the HUD",4,5,10,C.gold);
 local showSpells=DimButton(abilityPane,"SPELL HUD: OFF",4,30,176,function()
     local d=ABA.DB();d.spellVisible=not d.spellVisible;ABA.Update(true)
 end);
@@ -1002,7 +1217,7 @@ for i=1,12 do
 end
 Label(abilityPane,"Spell tracking is remembered separately by class.",4,345,10,C.grey);
 local procPane=spellPages.procs;local procPage=1;local procSelect={};
-Label(procPane,"DAMAGE PROCS  |  talents and items recorded by the meter",4,5,10,C.gold);
+Label(procPane,"DAMAGE PROCS  |  talent and item damage sources seen this run",4,5,10,C.gold);
 Label(procPane,"Only procs that have dealt damage appear below.",4,26,10,C.grey);
 for i=1,12 do
     local col=math.mod(i-1,2);local line=math.floor((i-1)/2);
@@ -1031,7 +1246,7 @@ for i=1,12 do
 end
 local procPrev=DimButton(procPane,"< PREVIOUS",4,333,173,function() procPage=math.max(1,procPage-1);ABA.Update(true) end);
 local procNext=DimButton(procPane,"NEXT >",191,333,173,function() procPage=procPage+1;ABA.Update(true) end);
-local procPageLabel=Label(procPane,"",5,373,10,C.grey);
+UIState.procPageLabel=Label(procPane,"",5,373,10,C.grey);
 
 
 -- LOOK: three consolidated workspaces, two controls cards and a constant preview.
@@ -1042,9 +1257,7 @@ for i,info in ipairs(lookPages) do
     local b=Subpage(lookPane,info[1],8+(i-1)*124,119,BindClick(info[2],function(which)
         lookPage=which;ABA.DB().lookPage=which;ABA.Update(true)
     end));
-    b:SetHeight(32);b.txt:SetPoint("CENTER",b,"CENTER",8,0);
-    local ico=b:CreateTexture(nil,"ARTWORK");ico:SetTexture(MODERN..info[3]..".tga");
-    ico:SetWidth(17);ico:SetHeight(17);ico:SetPoint("LEFT",b,"LEFT",7,0);
+    b:SetHeight(32);b.txt:ClearAllPoints();b.txt:SetAllPoints(b);b.txt:SetJustifyH("CENTER");SetYNXFont(b.txt,13,"OUTLINE",true);
     lookTabs[i]=b;
 end
 for _,key in ipairs({"layout","skins","frame","text","effects","bars"}) do
@@ -1054,6 +1267,7 @@ for _,key in ipairs({"layout","skins","frame","text","effects","bars"}) do
     pane:SetBackdrop({bgFile=WHITE,edgeFile=WHITE,edgeSize=1});
     pane:SetBackdropColor(0.027,0.073,0.113,0.98);
     pane:SetBackdropBorderColor(0.21,0.47,0.64,0.8);
+    ApplyPanelBackground(pane,"bg_look_"..key..".tga",0.54);
     lookGroups[key]=pane;
 end
 UIState.lookSides={};
@@ -1064,6 +1278,7 @@ for _,key in ipairs({"layout","skins","frame","text","effects","bars"}) do
     pane:SetBackdrop({bgFile=WHITE,edgeFile=WHITE,edgeSize=1});
     pane:SetBackdropColor(0.027,0.073,0.113,0.98);
     pane:SetBackdropBorderColor(0.21,0.47,0.64,0.8);
+    ApplyPanelBackground(pane,"bg_look_"..key..".tga",0.54);
     UIState.lookSides[key]=pane;
 end
 local lay=lookGroups.layout;
@@ -1071,11 +1286,15 @@ local layoutModeButtons={};
 Label(lay,"HUD ARRANGEMENT  |  choose how your stats flow",5,3,11,C.gold);
 for i,info in ipairs({{"VERTICAL","vertical"},{"GRID","grid"},{"HORIZONTAL","horizontal"}}) do
     local b=DimButton(lay,info[1],5+(i-1)*123,22,116,BindClick(info[2],function(mode) ABA.DB().layoutMode=mode;ABA.Update(true) end));
+    b.txt:ClearAllPoints();b.txt:SetPoint("LEFT",b,"LEFT",38,0);b.txt:SetWidth(72);b.txt:SetJustifyH("LEFT");
+    local icon=b:CreateTexture(nil,"ARTWORK");icon:SetTexture(MEDIA.."UI\\layout_"..info[2]..".tga");icon:SetWidth(28);icon:SetHeight(18);icon:SetPoint("LEFT",b,"LEFT",7,0);b.layoutIcon=icon;
     layoutModeButtons[i]={btn=b,key=info[2]};
 end
 local colsButtons={};Label(lay,"GRID COLUMNS",5,57,11,C.grey);
 for i=1,3 do
     local b=DimButton(lay,tostring(i),5+(i-1)*123,77,116,BindClick(i,function(cols) ABA.DB().columns=cols;ABA.Update(true) end));
+    b.txt:ClearAllPoints();b.txt:SetPoint("LEFT",b,"LEFT",48,0);b.txt:SetWidth(58);b.txt:SetJustifyH("LEFT");
+    local icon=b:CreateTexture(nil,"ARTWORK");icon:SetTexture(MEDIA.."UI\\cols_"..i..".tga");icon:SetWidth(32);icon:SetHeight(18);icon:SetPoint("LEFT",b,"LEFT",8,0);b.colsIcon=icon;
     colsButtons[i]=b;
 end
 local autoWidth=DimButton(lay,"AUTO WIDTH: ON",5,112,359,function() local d=ABA.DB();d.autoWidth=not d.autoWidth;ABA.Update(true) end);
@@ -1139,15 +1358,119 @@ end);
 
 local skinsPane=lookGroups.skins;
 Label(skinsPane,"THEMES  /  click a card to change the whole HUD",5,2,11,C.gold);
-Label(skinsPane,"Use the palette on the right to override individual colours.",5,25,9,C.grey);
-local skinDefs={{"SHADOW","shadow"},{"GLASS","glass"},{"CLASSIC","classic"},{"BARE","bare"},{"ARCANE","arcane"},{"EMBER","ember"},{"EMERALD","emerald"},{"FROST","frost"},{"SOLAR","solar"},{"NEON","neon"}};
+Label(skinsPane,"Choose a class-themed backdrop, then a palette below.",5,25,9,C.grey);
+UIState.specClassOrder={"warrior","paladin","hunter","rogue","priest","shaman","mage","warlock","druid"};
+UIState.specClassNames={warrior="WARRIOR",paladin="PALADIN",hunter="HUNTER",rogue="ROGUE",priest="PRIEST",shaman="SHAMAN",mage="MAGE",warlock="WARLOCK",druid="DRUID"};
+UIState.specThemePopup=nil;
+function UIState.RefreshSpecThemeButton()
+    if not UIState.specThemeButton then return end
+    local info=UIState.CurrentSpecTheme();
+    if info and info.code~="none" then
+        UIState.specThemeButton.txt:SetText(YNX_L("SPEC: ")..YNX_L(info.name).."  v");
+        UIState.specThemeButton.navTint=info.color;
+    else
+        UIState.specThemeButton.txt:SetText(YNX_L("SPEC: NONE v"));
+        UIState.specThemeButton.navTint={0.55,0.78,1};
+    end
+    PaintButton(UIState.specThemeButton);
+end
+UIState.specThemeButton=Button(skinsPane,"SPEC: NONE v",360,25,function()
+    local popup=UIState.specThemePopup;
+    if not popup then return end
+    if popup:IsShown() then popup:Hide();return end
+    local current=UIState.CurrentSpecTheme();
+    UIState.pickerClass=(current.class or "warrior");
+    UIState.RefreshSpecPicker();popup:Show()
+end);
+UIState.specThemeButton:SetPoint("TOPLEFT",skinsPane,"TOPLEFT",4,-48);
+UIState.specThemeButton:SetFrameLevel(skinsPane:GetFrameLevel()+5);
+UIState.specThemeButton:SetScript("OnEnter",function() Tip(UIState.specThemeButton,"Spec backdrop",{
+    "Pick a class, then one of its three specialization themes.",
+    "Class colors are used for the border unless you override them."
+}) end);
+UIState.specThemeButton:SetScript("OnLeave",HideTip);
+UIState.specThemePopup=CreateFrame("Frame",nil,settings);
+UIState.specThemePopup:SetWidth(368);UIState.specThemePopup:SetHeight(318);
+UIState.specThemePopup:SetPoint("TOPLEFT",UIState.specThemeButton,"BOTTOMLEFT",0,-3);
+UIState.specThemePopup:SetFrameStrata("TOOLTIP");
+UIState.specThemePopup:SetFrameLevel(settings:GetFrameLevel()+70);
+UIState.specThemePopup:SetBackdrop({bgFile=WHITE,edgeFile=WHITE,edgeSize=2});
+UIState.specThemePopup:SetBackdropColor(0.02,0.045,0.070,1);
+UIState.specThemePopup:SetBackdropBorderColor(0.54,0.76,0.99,1);
+Label(UIState.specThemePopup,"CHOOSE CLASS",8,8,10,C.gold);
+Label(UIState.specThemePopup,"SPECIALIZATION",130,8,10,C.gold);
+UIState.specClassButtons={}; UIState.specChoiceButtons={};
+for i=1,table.getn(UIState.specClassOrder) do
+    local which=UIState.specClassOrder[i];
+    local b=Button(UIState.specThemePopup,UIState.specClassNames[which],112,27,BindClick(which,function(name)
+        UIState.pickerClass=name;UIState.RefreshSpecPicker()
+    end));
+    b:SetPoint("TOPLEFT",UIState.specThemePopup,"TOPLEFT",8,-(28+(i-1)*28));
+    b:SetFrameLevel(UIState.specThemePopup:GetFrameLevel()+1);
+    UIState.specClassButtons[i]={btn=b,key=which};
+end
+for i=1,3 do
+    local b;
+    b=Button(UIState.specThemePopup,"",232,73,function()
+        if not b.specCode then return end
+        ABA.DB().specTheme=b.specCode;
+        UIState.specThemePopup:Hide();UIState.RefreshSpecThemeButton();ABA.Update(true)
+    end);
+    b:SetPoint("TOPLEFT",UIState.specThemePopup,"TOPLEFT",128,-(28+(i-1)*78));
+    b:SetFrameLevel(UIState.specThemePopup:GetFrameLevel()+1);
+    b.txt:ClearAllPoints();b.txt:SetPoint("TOPLEFT",b,"TOPLEFT",7,-5);
+    b.txt:SetWidth(184);b.txt:SetHeight(17);b.txt:SetJustifyH("LEFT");
+    b.art=b:CreateTexture(nil,"BORDER");b.art:SetPoint("TOPLEFT",b,"TOPLEFT",4,-23);
+    b.art:SetWidth(224);b.art:SetHeight(46);b.art:SetVertexColor(1,1,1,0.83);
+    b.check=Font(b,14,C.gold,"RIGHT");b.check:SetPoint("TOPRIGHT",b,"TOPRIGHT",-7,-4);b.check:SetWidth(30);
+    b:SetScript("OnEnter",function()
+        b.hover=true;PaintButton(b);
+        if b.specCode and UIState.specThemeMap[b.specCode] then
+            Tip(b,YNX_L(UIState.specThemeMap[b.specCode].name),{"Use this class-coloured HUD artwork and border.","You can still change the palette below."})
+        end
+    end);
+    b:SetScript("OnLeave",function() HideTip();b.hover=false;PaintButton(b) end);
+    UIState.specChoiceButtons[i]=b;
+end
+UIState.specClearButton=Button(UIState.specThemePopup,"NONE / REMOVE BACKDROP",231,28,function()
+    ABA.DB().specTheme="none";UIState.specThemePopup:Hide();UIState.RefreshSpecThemeButton();ABA.Update(true)
+end);
+UIState.specClearButton:SetPoint("BOTTOMRIGHT",UIState.specThemePopup,"BOTTOMRIGHT",-7,9);
+UIState.specClearButton:SetFrameLevel(UIState.specThemePopup:GetFrameLevel()+1);
+function UIState.RefreshSpecPicker()
+    local chosen=UIState.pickerClass or "warrior";local active=(ABA.DB().specTheme or "none");
+    for i=1,table.getn(UIState.specClassButtons) do
+        local entry=UIState.specClassButtons[i];Selected(entry.btn,entry.key==chosen);
+        local color=nil;
+        for j=2,table.getn(UIState.specThemes) do
+            if UIState.specThemes[j].class==entry.key then color=UIState.specThemes[j].color;break end
+        end
+        if color then entry.btn.navTint=color;PaintButton(entry.btn) end
+    end
+    local n=0;
+    for i=2,table.getn(UIState.specThemes) do
+        local info=UIState.specThemes[i];
+        if info.class==chosen then
+            n=n+1;local b=UIState.specChoiceButtons[n];
+            b.specCode=info.code;b.txt:SetText(YNX_L(info.name));
+            b.art:SetTexture(MEDIA.."UI\\spec_"..info.code..".tga");
+            b.navTint=info.color;Selected(b,active==info.code);
+            b.check:SetText(active==info.code and "[X]" or "");
+            b:Show();
+        end
+    end
+    for i=n+1,3 do UIState.specChoiceButtons[i]:Hide() end
+    Selected(UIState.specClearButton,active=="none")
+end
+UIState.specThemePopup:Hide();UIState.RefreshSpecThemeButton();
+UIState.skinDefs={{"SHADOW","shadow"},{"GLASS","glass"},{"CLASSIC","classic"},{"BARE","bare"},{"ARCANE","arcane"},{"EMBER","ember"},{"EMERALD","emerald"},{"FROST","frost"},{"SOLAR","solar"},{"NEON","neon"}};
 local skinButtons={};
-for i,skin in ipairs(skinDefs) do
+for i,skin in ipairs(UIState.skinDefs) do
     local col=math.mod(i-1,2);local row=math.floor((i-1)/2);
     local b=Button(skinsPane,skin[1],177,58,BindClick(skin[2],function(name)
         local d=ABA.DB();d.skin=name;d.accent="skin";d.manualColorsEnabled=false;ABA.Update(true)
     end));
-    b:SetPoint("TOPLEFT",skinsPane,"TOPLEFT",4+col*184,-(53+row*66));
+    b:SetPoint("TOPLEFT",skinsPane,"TOPLEFT",4+col*184,-(86+row*66));
     b.txt:ClearAllPoints();b.txt:SetPoint("TOP",b,"TOP",0,-2);
     local c=skins[skin[2]] or skins.shadow;
     local pal=skinText[skin[2]] or skinText.shadow;
@@ -1172,24 +1495,24 @@ end
 -- FRAME: independent of the selected color theme. Choose actual HUD geometry.
 UIState.framePane=lookGroups.frame;
 Label(UIState.framePane,"FRAME SHAPE  /  choose the silhouette",6,3,11,C.gold);
-UIState.frameKinds={{"FLOAT","float"},{"SOFT","soft"},{"BOX","box"},{"ROUND","round"},{"ROUNDLESS","softround"}};
+UIState.frameKinds={{"FLOAT","float"},{"BOX","box"},{"ROUND","round"}};
 UIState.frameButtons={};
-Label(UIState.framePane,"SELECT A SHAPE  /  visual silhouettes",6,30,10,C.grey);
+Label(UIState.framePane,"SELECT A SHAPE  /  how the HUD panel will look",6,30,10,C.grey);
 for i,kind in ipairs(UIState.frameKinds) do
     local x=6+math.mod(i-1,3)*120; local y=56+math.floor((i-1)/3)*78;
     local b=Button(UIState.framePane,kind[1],112,70,BindClick(kind[2],function(k)
         ABA.DB().frameKind=k;ABA.Update(true)
     end));b:SetPoint("TOPLEFT",UIState.framePane,"TOPLEFT",x,-y);
     b.txt:ClearAllPoints();b.txt:SetPoint("BOTTOM",b,"BOTTOM",0,5);
-    local symbol=b:CreateTexture(nil,"ARTWORK");symbol:SetTexture(MEDIA.."UI\frame_"..kind[2]..".tga");
-    symbol:SetWidth(96);symbol:SetHeight(42);symbol:SetPoint("TOP",b,"TOP",0,-2);
+    local symbol=b:CreateTexture(nil,"ARTWORK");symbol:SetTexture(MEDIA.."UI\\frame_"..kind[2]..".tga");
+    symbol:SetWidth(94);symbol:SetHeight(40);symbol:SetPoint("TOP",b,"TOP",0,-3);
     UIState.frameButtons[i]={btn=b,key=kind[2]};
 end
-Label(UIState.framePane,"Roundless: smooth background without an outline.",6,220,10,C.grey);
-local padRow=StepRow(UIState.framePane,"INNER PADDING",246,"hudPadding",1,0,28,function(v) return tostring(v).." px" end);
-local opacityRow=StepRow(UIState.framePane,"BACKGROUND OPACITY",307,"opacity",0.05,0.05,1,
+Label(UIState.framePane,"Tip: ROUND + BORDER WIDTH 0 gives a borderless rounded panel.",6,145,10,C.grey);
+local padRow=StepRow(UIState.framePane,"INNER PADDING",171,"hudPadding",1,0,28,function(v) return tostring(v).." px" end);
+local opacityRow=StepRow(UIState.framePane,"BACKGROUND OPACITY",232,"opacity",0.05,0.05,1,
     function(v) return tostring(math.floor(v*100+0.5)).."%" end);
-local borderRow=StepRow(UIState.framePane,"BORDER WIDTH",369,"borderWidth",1,0,4,
+local borderRow=StepRow(UIState.framePane,"BORDER WIDTH",294,"borderWidth",1,0,4,
     function(v) return tostring(v).." px" end);
 Label(UIState.lookSides.frame,"VISUAL PRESETS  /  a complete look in one click",6,6,11,C.gold);
 UIState.hudStyles={{"ARCANE","arcane"},{"MYTHIC","mythic"},{"NEON","minimal"}};
@@ -1199,7 +1522,7 @@ for i,item in ipairs(UIState.hudStyles) do
         local d=ABA.DB();
         if v=="arcane" then
             d.skin="glass";d.accent="teal";d.frameKind="round";
-            d.opacity=0.92;d.iconTheme="modern";d.iconSize=22;
+            d.opacity=0.92;d.iconTheme="arcane";d.iconSize=22;
             d.fontSize=13;d.gaugeHeight=4;d.gaugeColor="cyan";
             d.hudPadding=8;d.iconGap=4;d.effectMode="subtle";
         elseif v=="mythic" then
@@ -1232,12 +1555,14 @@ UIState.brightnessRow=StepRow(UIState.textPane,"ICON BRIGHTNESS",222,"iconBright
 UIState.iconGapRow=StepRow(UIState.textPane,"ICON-TO-NUMBER GAP",284,"iconGap",1,1,12,function(v) return tostring(v).." px" end);
 UIState.yOffsetRow=StepRow(UIState.textPane,"NUMBER BASELINE",346,"valueYOffset",1,-8,8,function(v) return tostring(v).." px" end);
 UIState.iconThemeBtn=DimButton(UIState.textPane,"ICON ART: MODERN",5,410,176,function()
-    local d=ABA.DB();d.iconTheme=d.iconTheme=="modern" and "classic" or "modern";ABA.Update(true)
+    local d=ABA.DB();d.iconTheme=(d.iconTheme=="modern" and "arcane") or
+        (d.iconTheme=="arcane" and "classic") or "modern";ABA.Update(true)
 end);
 UIState.fontFaceBtn=DimButton(UIState.textPane,"HUD FONT: CLEAN",188,410,176,function()
     local d=ABA.DB(); d.valueFont = (d.valueFont=="clean" and "classic") or (d.valueFont=="classic" and "fantasy") or "clean"; ABA.Update(true)
 end);
-Label(UIState.textPane,"Choose jewel-backed art, font family and number alignment.",6,442,9,C.grey);
+Label(UIState.textPane,"Art packs: Arcane / Modern / Classic.",6,442,9,C.grey);
+UIState.percentBtn=DimButton(UIState.textPane,"SHOW % SYMBOL",5,458,359,function() local d=ABA.DB();d.showPercent=not d.showPercent;ABA.Update(true) end);
 
 UIState.fx=lookGroups.effects;
 Label(UIState.fx,"ANIMATION INTENSITY",7,4,11,C.gold);
@@ -1248,7 +1573,7 @@ for i,info in ipairs({{"OFF","off"},{"SUBTLE","subtle"},{"NORMAL","normal"}}) do
 end
 Label(UIState.fx,"STAT GAINS",7,83,11,C.gold);
 UIState.deltaBtn=DimButton(UIState.fx,"SHOW PREVIOUS + GAIN",5,100,359,function() local d=ABA.DB();d.showDelta=not d.showDelta;ABA.Update(true) end);
-UIState.durationRow=StepRow(UIState.fx,"CHANGE PREVIEW DURATION",138,"deltaDuration",0.5,1,5,function(v) return string.format("%.1f sec",v) end);
+UIState.durationRow=StepRow(UIState.fx,"CHANGE PREVIEW DURATION",138,"deltaDuration",0.5,1,5,function(v) return string.format(YNX_L("%.1f sec"),v) end);
 UIState.pulseBtn=DimButton(UIState.fx,"HEARTBEAT PULSE",5,207,176,function() local d=ABA.DB();d.pulse=not d.pulse;ABA.Update(true) end);
 UIState.glowBtn=DimButton(UIState.fx,"COLOUR FLASH",190,207,174,function() local d=ABA.DB();d.glow=not d.glow;ABA.Update(true) end);
 Label(UIState.fx,"OTHER FEEDBACK",7,247,11,C.gold);
@@ -1285,7 +1610,7 @@ UIState.barOptions.highlight=DimButton(UIState.barsPane,"HIGHLIGHT GAIN",190,253
     local d=ABA.DB();d.gaugeHighlight=not d.gaugeHighlight;ABA.Update(true)
 end);
 UIState.barOptions.transition=StepRow(UIState.barsPane,"FILL TRANSITION TIME",288,"gaugeTransition",0.15,0.15,1.5,
-    function(v) return string.format("%.2f sec",v) end);
+    function(v) return string.format(YNX_L("%.2f sec"),v) end);
 Label(UIState.barsPane,"GAIN HIGHLIGHT COLOUR  /  lasts for FX preview duration",6,341,9,C.gold);
 UIState.barOptions.colors={{"GREEN","green"},{"CYAN","cyan"},{"GOLD","gold"}};
 UIState.barOptions.buttons={};
@@ -1316,10 +1641,10 @@ UIState.paletteToggle=DimButton(UIState.lookSides.skins,"CUSTOM PALETTE",8,35,35
 end);
 MakeCheck(UIState.paletteToggle,"Override selected theme colours");
 UIState.paletteFields={};
-local paletteLabels={text="MAIN TEXT",secondary="SECONDARY TEXT",background="BACKGROUND",border="BORDER",bar="PROGRESS BARS",gain="GAIN HIGHLIGHT"};
+UIState.paletteLabels={text="MAIN TEXT",secondary="SECONDARY TEXT",background="BACKGROUND",border="BORDER",bar="PROGRESS BARS",gain="GAIN HIGHLIGHT"};
 local function PaletteRow(kind,index)
     local y=78+(index-1)*54;
-    Label(UIState.lookSides.skins,paletteLabels[kind].."  /  #RRGGBB",10,y,10,C.grey);
+    Label(UIState.lookSides.skins,UIState.paletteLabels[kind].."  /  #RRGGBB",10,y,10,C.grey);
     local field=CreateFrame("EditBox",nil,UIState.lookSides.skins);field:SetWidth(171);field:SetHeight(24);
     field:SetPoint("TOPLEFT",UIState.lookSides.skins,"TOPLEFT",10,-(y+17));field:SetAutoFocus(false);field:SetMaxLetters(7);
     SetYNXFont(field,12,"OUTLINE");field:SetBackdrop({bgFile=WHITE,edgeFile=WHITE,edgeSize=1});
@@ -1349,7 +1674,7 @@ local function PaletteRow(kind,index)
             ABA.Update(true)
         end)
     end);
-    swatch:SetScript("OnEnter",function() Tip(swatch,"Pick "..paletteLabels[kind].." colour",{"Click to open the colour wheel.","Drag around the wheel; adjust brightness.","Cancel restores the previous colour."}) end);
+    swatch:SetScript("OnEnter",function() Tip(swatch,"Pick "..UIState.paletteLabels[kind].." colour",{"Click to open the colour wheel.","Drag around the wheel; adjust brightness.","Cancel restores the previous colour."}) end);
     swatch:SetScript("OnLeave",HideTip);
     field:SetScript("OnEnterPressed",function() CommitHex(field:GetText()) end);
     UIState.paletteFields[kind]={field=field,swatch=sample,pick=swatch,apply=save};
@@ -1361,19 +1686,20 @@ Label(UIState.lookSides.skins,"Click a coloured box for the wheel, or type HEX a
 -- Large pictorial icon-pack comparison, not a cryptic toggle.
 Label(UIState.lookSides.text,"ICON COLLECTION",8,9,12,C.gold);
 UIState.iconTiles={};
-for i,def in ipairs({{"MODERN","modern"},{"CLASSIC","classic"}}) do
-    local b=Button(UIState.lookSides.text,def[1],165,105,BindClick(def[2],function(v)
+for i,def in ipairs({{"MODERN","modern"},{"ARCANE","arcane"},{"CLASSIC","classic"}}) do
+    local b=Button(UIState.lookSides.text,def[1],112,105,BindClick(def[2],function(v)
         ABA.DB().iconTheme=v;ABA.Update(true)
-    end));b:SetPoint("TOPLEFT",UIState.lookSides.text,"TOPLEFT",8+(i-1)*179,-42);
+    end));b:SetPoint("TOPLEFT",UIState.lookSides.text,"TOPLEFT",8+(i-1)*119,-42);
     b.txt:ClearAllPoints();b.txt:SetPoint("BOTTOM",b,"BOTTOM",0,9);
     for j,icon in ipairs({"dmg","cd","crit"}) do
-        local t=b:CreateTexture(nil,"ARTWORK");t:SetTexture((def[2]=="modern" and MODERN or MEDIA)..icon..".tga");
-        t:SetWidth(37);t:SetHeight(37);t:SetPoint("TOPLEFT",b,"TOPLEFT",8+(j-1)*51,-15)
+        local t=b:CreateTexture(nil,"ARTWORK");t:SetTexture(StatIconPath({icon=icon},def[2],false));
+        if def[2]=="classic" then t:SetTexCoord(0.08,0.92,0.08,0.92) end
+        t:SetWidth(29);t:SetHeight(29);t:SetPoint("TOPLEFT",b,"TOPLEFT",9+(j-1)*35,-20)
     end
     UIState.iconTiles[i]={btn=b,key=def[2]};
 end
 Label(UIState.lookSides.text,"Number typography and icon size are set on the left.",8,183,11,C.grey);
-Label(UIState.lookSides.text,"The classic pack is retained for older profiles.",8,212,11,C.grey);
+Label(UIState.lookSides.text,"All icon packs now include idle + activated stat art.",8,212,10,C.grey);
 -- Marker controls are explicitly bound per key.  No loop-variable captures:
 -- the WoW 1.12 Lua client has different closure semantics from newer Lua.
 -- Only expose marker types for which YNX actually has real data.
@@ -1399,7 +1725,7 @@ end
 UIState.MarkerToggle("Build goals  /  Haste 60% and 75%","showGoalMarkers",39);
 UIState.MarkerToggle("Conversion  /  Crit and Echo 100%","showConversionMarkers",81);
 UIState.MarkerToggle("Hard caps  /  Armor and Speed","showHardCapMarkers",123);
-Label(UIState.lookSides.bars,"Soft caps: none verified; no fabricated markers.",12,169,10,C.grey);
+Label(UIState.lookSides.bars,"No soft-cap markers are shown because none are confirmed yet.",12,169,10,C.grey);
 UIState.markerStatus=Label(UIState.lookSides.bars,"",12,191,10,C.gold);
 Label(UIState.lookSides.bars,"BAR WIDTH PRESETS",8,216,11,C.gold);
 UIState.barWidthPresets={};
@@ -1425,13 +1751,18 @@ Label(UIState.lookSides.effects,"CALM      Small fades, reduced motion",8,116,11
 Label(UIState.lookSides.effects,"BALANCED  Clear feedback without distraction",8,143,11,C.grey);
 Label(UIState.lookSides.effects,"SHOWCASE  Longer glow and stronger pulse",8,170,11,C.grey);
 Label(UIState.lookSides.effects,"Use PLAY GAIN on the right to compare.",8,239,11,C.blue);
-Label(UIState.lookSides.effects,"The demo runs through the same animation code as the HUD.",8,267,10,C.grey);
+Label(UIState.lookSides.effects,"The preview uses the same animations as the real HUD.",8,267,10,C.grey);
+UIState.arcaneMotionBtn=DimButton(UIState.lookSides.effects,"ICON REACTIONS",8,315,351,function()
+    local d=ABA.DB();d.iconReactions=not d.iconReactions;d.arcaneMotion=d.iconReactions;ABA.Update(true)
+end);
+Label(UIState.lookSides.effects,"Reacts on stat gains in Classic, Modern and Arcane.",10,350,10,C.grey);
 -- Compact checkbox controls use a consistent small checked square.  The
 -- captions never change their length on toggle, so the menu doesn't jump.
 MakeCheck(autoWidth,"Auto width");
 MakeCheck(showSpells,"Show tracked spells on HUD");
 MakeCheck(UIState.deltaBtn,"Floating gain preview");
 MakeCheck(UIState.pulseBtn,"Icon and number pulse");
+MakeCheck(UIState.arcaneMotionBtn,"Switch to activated artwork on stat gain");
 MakeCheck(UIState.glowBtn,"Colour flash");
 MakeCheck(UIState.milestoneBtn,"Milestone celebration");
 MakeCheck(UIState.spellCDBtn,"Cooldown labels");
@@ -1459,10 +1790,11 @@ UIState.preview.stage:SetBackdrop({bgFile=WHITE,edgeFile=WHITE,edgeSize=1});
 UIState.preview.stage:SetBackdropColor(0.10,0.20,0.10,0.55);
 UIState.preview.stage:SetBackdropBorderColor(0.16,0.24,0.14,0.55);
 UIState.preview.stage.grass=UIState.preview.stage:CreateTexture(nil,"BACKGROUND");
-UIState.preview.stage.grass:SetTexture(MEDIA.."UI\\grass.tga");
+UIState.preview.stage.grass:SetTexture(MEDIA.."UI\\bg_preview_look.tga");
 UIState.preview.stage.grass:SetAllPoints(UIState.preview.stage);
-UIState.preview.stage.grass:SetVertexColor(0.75,0.87,0.76,0.88);
+UIState.preview.stage.grass:SetVertexColor(1,1,1,0.72);
 UIState.preview.hud=CreateFrame("Frame",nil,UIState.preview.stage);
+UIState.EnsureThemeArt(UIState.preview.hud);
 UIState.preview.hud:SetPoint("TOPLEFT",UIState.preview.stage,"TOPLEFT",8,-8);
 UIState.preview.hud:SetWidth(332);UIState.preview.hud:SetHeight(225);
 UIState.preview.hud:SetBackdrop({bgFile=WHITE,edgeFile=WHITE,edgeSize=2});
@@ -1505,25 +1837,28 @@ UIState.preview.widthMore=Button(UIState.preview.card,"+",77,25,function()
 end);
 UIState.preview.widthMore:SetPoint("TOPRIGHT",UIState.preview.card,"TOPRIGHT",-14,-308);
 UIState.preview.test=Button(UIState.preview.card,"PLAY HUD GAIN ANIMATION",348,30,function()
-    local pr=UIState.preview;local candidate=nil;
-    -- Prefer a tracked statistic with a real milestone bar, when available.
+    local pr=UIState.preview;local pool={};
     for i=1,table.getn(pr.hud.rows) do
         local row=pr.hud.rows[i];
-        if row.stat and row:IsShown() and ABA.GetMilestone(row.stat.key) then candidate=row;break end
+        if row.stat and row:IsShown() then table.insert(pool,row) end
     end
-    if not candidate then
-        for i=1,table.getn(pr.hud.rows) do
-            local row=pr.hud.rows[i];if row.stat and row:IsShown() then candidate=row;break end
-        end
+    if table.getn(pool)==0 then return end
+    local chosen={};
+    -- Sample without replacement from ALL selected stats, including those
+    -- without milestone bars. One-stat HUDs naturally animate only once.
+    local take=math.min(2,table.getn(pool));
+    for i=1,take do
+        local idx=math.random(1,table.getn(pool));
+        table.insert(chosen,table.remove(pool,idx));
     end
-    if not candidate then return end
-    local stat=candidate.stat;local d=ABA.DB();
-    local current=type(AZS_STATS)=="table" and AZS_STATS[stat.key] or nil;
-    if type(current)~="number" then current=1 end
-    local shift=0.03;
-    if stat.kind=="int" then shift=1 elseif stat.kind=="rate" then shift=0.3 end
-    if stat.kind=="cooldown" then shift=-0.03 end
-    pr.sample={key=stat.key,before=current,after=current+shift,at=GetTime()};
+    local d=ABA.DB(); pr.samples={};
+    for i=1,table.getn(chosen) do
+        local stat=chosen[i].stat; local current=type(AZS_STATS)=="table" and AZS_STATS[stat.key] or nil;
+        if type(current)~="number" then current=1 end
+        local shift=0.03; if stat.kind=="int" then shift=1 elseif stat.kind=="rate" then shift=0.3 end; if stat.kind=="cooldown" then shift=-0.03 end
+        table.insert(pr.samples,{key=stat.key,before=current,after=current+shift,at=GetTime()})
+    end
+    pr.sample=pr.samples[1];
     if UIState.RefreshPreview then UIState.RefreshPreview(d) end
 end);
 UIState.preview.test:SetPoint("TOPLEFT",UIState.preview.card,"TOPLEFT",14,-345);
@@ -1590,6 +1925,7 @@ local function PaintPreviewFrame(pr,d)
             piece:Show();piece:SetVertexColor(accent[1],accent[2],accent[3],borderAlpha)
         else piece:Hide() end
     end
+    UIState.ApplyThemeArt(pr.hud,d,0.52*opacity)
 end
 function UIState.RefreshPreview(d)
     local pr=UIState.preview; PaintPreviewFrame(pr,d);
@@ -1603,45 +1939,64 @@ function UIState.RefreshPreview(d)
     pr.hud:ClearAllPoints();pr.hud:SetPoint("TOPLEFT",pr.stage,"TOPLEFT",8,-8);
     pr.hud:SetWidth(w);pr.hud:SetHeight(naturalH);
     pr.resize:ClearAllPoints();pr.resize:SetPoint("RIGHT",pr.hud,"RIGHT",7,0);
-    pr.widthLabel:SetText("HUD WIDTH: "..tostring(math.floor(w+0.5)).." px"..(d.autoWidth and " (AUTO)" or ""));
+    pr.widthLabel:SetText(YNX_L("HUD WIDTH: ")..tostring(math.floor(w+0.5)).." px"..(d.autoWidth and YNX_L(" (AUTO)") or ""));
     -- A Settings refresh can rebuild the preview while a sample is running.
     -- Restore the synthetic bar change so the same renderer keeps its timing.
-    if pr.sample and GetTime()-pr.sample.at<(d.deltaDuration or 2) then
-        for i=1,table.getn(pr.hud.rows) do
-            local row=pr.hud.rows[i];
-            if row.stat and row.stat.key==pr.sample.key then
-                local old=ABA.GetMilestone(row.stat.key,{[row.stat.key]=pr.sample.before});
-                local now=ABA.GetMilestone(row.stat.key,{[row.stat.key]=pr.sample.after});
-                if old and now and row.gaugeLength then
-                    row.gaugeStart=old.progress;row.gaugeShown=old.progress;
-                    row.gaugeTarget=now.progress;row.gaugeTargetPrevious=now.progress;
-                    row.gaugeAt=pr.sample.at;row.gainUntil=pr.sample.at+d.deltaDuration;
+    local samples=pr.samples or (pr.sample and {pr.sample} or nil)
+    if samples then
+        for s=1,table.getn(samples) do
+            local sample=samples[s]
+            if GetTime()-sample.at<(d.deltaDuration or 2) then
+                for i=1,table.getn(pr.hud.rows) do
+                    local row=pr.hud.rows[i];
+                    if row.stat and row.stat.key==sample.key then
+                        local old=ABA.GetMilestone(row.stat.key,{[row.stat.key]=sample.before});
+                        local now=ABA.GetMilestone(row.stat.key,{[row.stat.key]=sample.after});
+                        if old and now and row.gaugeLength then
+                            row.gaugeStart=old.progress;row.gaugeShown=old.progress;
+                            row.gaugeTarget=now.progress;row.gaugeTargetPrevious=now.progress;
+                            row.gaugeAt=sample.at;row.gainUntil=sample.at+d.deltaDuration;
+                        end
+                        break
+                    end
                 end
-                break
             end
         end
     end
 end
 -- No independent preview animation code.  Both HUDs call UIState.AnimateRow.
+local previewAnimationElapsed=0;
 UIState.preview.hud:SetScript("OnUpdate",function()
-    local pr=UIState.preview;local sample=pr.sample;if not sample then return end
-    local d=ABA.DB();
-    if GetTime()-sample.at > d.deltaDuration then
-        pr.sample=nil;
+    local pr=UIState.preview;local samples=pr.samples or (pr.sample and {pr.sample} or nil);if not samples then return end
+    previewAnimationElapsed=previewAnimationElapsed+(arg1 or 0);
+    if previewAnimationElapsed<1/30 then return end
+    previewAnimationElapsed=0;
+    local now=GetTime();local d=ABA.DB();
+    local active={};
+    for s=1,table.getn(samples) do if now-samples[s].at <= d.deltaDuration then table.insert(active,samples[s]) end end
+    if table.getn(active)==0 then
+        pr.sample=nil;pr.samples=nil;
         if UIState.RefreshPreview then UIState.RefreshPreview(d) end
         return
     end
+    pr.samples=active;pr.sample=active[1];
     for i=1,table.getn(pr.hud.rows) do
         local row=pr.hud.rows[i];
-        if row.stat and row.stat.key==sample.key and row:IsShown() and UIState.AnimateRow then
-            UIState.AnimateRow(row,0,sample)
-            break
+        if row.stat and row:IsShown() and UIState.AnimateRow then
+            for s=1,table.getn(active) do
+                local sample=active[s]
+                if row.stat.key==sample.key then UIState.AnimateRow(row,0,sample,now,d); break end
+            end
         end
     end
 end);
 
 -- INSIGHTS: read-only game API summaries and historical comparisons.
 local insightPane=pages.INSIGHTS;local insightPage="run";local insightTabs={};
+UIState.insightBackgrounds={};
+for _,info in ipairs({{"run","bg_insights_run.tga"},{"spells","bg_insights_spells.tga"},{"trends","bg_insights_trends.tga"},{"notes","bg_insights_notes.tga"}}) do
+    local tex=insightPane:CreateTexture(nil,"BORDER");tex:SetPoint("TOPLEFT",insightPane,"TOPLEFT",0,-31);tex:SetWidth(368);tex:SetHeight(396);tex:SetTexture(MEDIA.."UI\\"..info[2]);tex:SetVertexColor(1,1,1,0.54);tex:Hide();UIState.insightBackgrounds[info[1]]=tex;
+end
 for i,info in ipairs({{"RUN","run"},{"SPELLS","spells"},{"TRENDS","trends"},{"NOTES","notes"}}) do
     insightTabs[i]={btn=Subpage(insightPane,info[1],2+(i-1)*93,89,BindClick(info[2],function(page) insightPage=page;ABA.Update(true) end)),key=info[2]};
 end
@@ -1661,6 +2016,7 @@ for _,group in ipairs({"STATS","SPELLS","INSIGHTS"}) do
     card:SetBackdrop({bgFile=WHITE,edgeFile=WHITE,edgeSize=1});
     card:SetBackdropColor(0.024,0.071,0.105,0.95);
     card:SetBackdropBorderColor(0.22,0.49,0.64,0.9);
+    ApplyPanelBackground(card,"bg_card_"..string.lower(group)..".tga",0.75);
     local headline=(group=="STATS" and "BUILD OVERVIEW") or (group=="SPELLS" and "ABILITY & PROC TRACKING") or "RUN INTELLIGENCE";
     Label(card,headline,19,17,15,C.gold);
     local sub=(group=="STATS" and "Choose stats on the left. Organize their order in ORDER.") or
@@ -1676,12 +2032,12 @@ for _,group in ipairs({"STATS","SPELLS"}) do
     card.previewStage:SetPoint("TOPLEFT",card,"TOPLEFT",19,-132);
     card.previewStage:SetWidth(660);card.previewStage:SetHeight(292);
     card.previewStage:SetBackdrop({bgFile=WHITE,edgeFile=WHITE,edgeSize=1});
-    card.previewStage:SetBackdropColor(0.10,0.20,0.10,0.55);
-    card.previewStage:SetBackdropBorderColor(0.16,0.24,0.14,0.55);
+    card.previewStage:SetBackdropColor(0.04,0.09,0.15,0.40);
+    card.previewStage:SetBackdropBorderColor(0.23,0.49,0.69,0.75);
     card.previewStage.grass=card.previewStage:CreateTexture(nil,"BACKGROUND");
-    card.previewStage.grass:SetTexture(MEDIA.."UI\\grass.tga");
+    card.previewStage.grass:SetTexture(MEDIA.."UI\\bg_preview_"..string.lower(group)..".tga");
     card.previewStage.grass:SetAllPoints(card.previewStage);
-    card.previewStage.grass:SetVertexColor(0.75,0.87,0.76,0.88);
+    card.previewStage.grass:SetVertexColor(1,1,1,0.72);
     card.previewHUD=CreateFrame("Frame",nil,card.previewStage);
     card.previewHUD:SetPoint("TOPLEFT",card.previewStage,"TOPLEFT",9,-9);
     card.previewHUD:SetWidth(640);card.previewHUD:SetHeight(270);
@@ -1709,17 +2065,27 @@ UIState.orderOptions:Hide();
 Label(UIState.helpCards.STATS,"Selected-stat preview",19,436,12,C.blue);
 Label(UIState.helpCards.STATS,"The preview uses your real order, spacing, bars and selected icons.",19,458,11,C.grey);
 Label(UIState.helpCards.SPELLS,"Spell choices affect the compact spell HUD below the main stat block.",19,436,11,C.grey);
-Label(UIState.helpCards.SPELLS,"Proc icons prefer the game's spell and talent artwork.",19,458,12,C.blue);
+Label(UIState.helpCards.SPELLS,"Proc icons use the game's own spell and talent art when available.",19,458,12,C.blue);
+UIState.helpCards.SPELLS.previewSpellIcons={};
+UIState.helpCards.SPELLS.previewSpellHint=Label(UIState.helpCards.SPELLS.previewHUD,"No abilities selected yet. Select one on the left to preview it here.",14,16,11,C.grey);
+for i=1,12 do
+    local holder=CreateFrame("Frame",nil,UIState.helpCards.SPELLS.previewHUD);
+    holder:SetWidth(90);holder:SetHeight(60);holder:Hide();
+    holder.icon=holder:CreateTexture(nil,"ARTWORK");holder.icon:SetWidth(30);holder.icon:SetHeight(30);holder.icon:SetPoint("TOP",holder,"TOP",0,-1);
+    holder.iconFrame=holder:CreateTexture(nil,"OVERLAY");holder.iconFrame:SetTexture(MODERN.."ability_frame.tga");holder.iconFrame:SetAllPoints(holder.icon);
+    holder.label=Font(holder,9,C.grey,"CENTER");holder.label:SetPoint("TOP",holder.icon,"BOTTOM",0,-2);holder.label:SetWidth(88);
+    UIState.helpCards.SPELLS.previewSpellIcons[i]=holder;
+end
 UIState.helpCards.INSIGHTS.previewStage=CreateFrame("Frame",nil,UIState.helpCards.INSIGHTS);
 UIState.helpCards.INSIGHTS.previewStage:SetPoint("TOPLEFT",UIState.helpCards.INSIGHTS,"TOPLEFT",19,-120);
 UIState.helpCards.INSIGHTS.previewStage:SetWidth(660);UIState.helpCards.INSIGHTS.previewStage:SetHeight(212);
 UIState.helpCards.INSIGHTS.previewStage:SetBackdrop({bgFile=WHITE,edgeFile=WHITE,edgeSize=1});
-UIState.helpCards.INSIGHTS.previewStage:SetBackdropColor(0.10,0.20,0.10,0.55);
-UIState.helpCards.INSIGHTS.previewStage:SetBackdropBorderColor(0.16,0.24,0.14,0.55);
+UIState.helpCards.INSIGHTS.previewStage:SetBackdropColor(0.04,0.09,0.15,0.40);
+UIState.helpCards.INSIGHTS.previewStage:SetBackdropBorderColor(0.23,0.49,0.69,0.75);
 UIState.helpCards.INSIGHTS.previewStage.grass=UIState.helpCards.INSIGHTS.previewStage:CreateTexture(nil,"BACKGROUND");
-UIState.helpCards.INSIGHTS.previewStage.grass:SetTexture(MEDIA.."UI\\grass.tga");
+UIState.helpCards.INSIGHTS.previewStage.grass:SetTexture(MEDIA.."UI\\bg_preview_insights.tga");
 UIState.helpCards.INSIGHTS.previewStage.grass:SetAllPoints(UIState.helpCards.INSIGHTS.previewStage);
-UIState.helpCards.INSIGHTS.previewStage.grass:SetVertexColor(0.75,0.87,0.76,0.88);
+UIState.helpCards.INSIGHTS.previewStage.grass:SetVertexColor(1,1,1,0.72);
 UIState.helpCards.INSIGHTS.previewHUD=CreateFrame("Frame",nil,UIState.helpCards.INSIGHTS.previewStage);
 UIState.helpCards.INSIGHTS.previewHUD:SetPoint("TOPLEFT",UIState.helpCards.INSIGHTS.previewStage,"TOPLEFT",9,-9);
 UIState.helpCards.INSIGHTS.previewHUD:SetWidth(640);UIState.helpCards.INSIGHTS.previewHUD:SetHeight(194);
@@ -1727,7 +2093,7 @@ UIState.helpCards.INSIGHTS.previewHUD:SetBackdrop({bgFile=WHITE,edgeFile=WHITE,e
 BuildGhostRows(UIState.helpCards.INSIGHTS.previewHUD,29);
 Label(UIState.helpCards.INSIGHTS,"INSIGHTS  /  measured from the game",19,342,14,C.gold);
 Label(UIState.helpCards.INSIGHTS,"RUN: current totals    SPELLS: damage    TRENDS: stat changes",19,376,12,C.white);
-Label(UIState.helpCards.INSIGHTS,"The game's damage meter remains the authoritative source.",19,405,11,C.blue);
+Label(UIState.helpCards.INSIGHTS,"Damage values come from the game's own meter.",19,405,11,C.blue);
 
 
 
@@ -1736,9 +2102,9 @@ Label(UIState.helpCards.INSIGHTS,"The game's damage meter remains the authoritat
 function UIState.RefreshSideCards(d)
     local total=0;
     for i=1,table.getn(ABA.stats) do if ABA.IsEnabled(ABA.stats[i]) then total=total+1 end end
-    UIState.helpCards.STATS.counter:SetText(tostring(total).." of 29 statistics selected");
-    UIState.helpCards.SPELLS.counter:SetText("Current class: "..tostring(ABA.ClassKey()));
-    UIState.helpCards.INSIGHTS.counter:SetText("Explore the left-side categories to read live data.");
+    UIState.helpCards.STATS.counter:SetText(tostring(total)..YNX_L(" of 29 statistics selected"));
+    UIState.helpCards.SPELLS.counter:SetText(YNX_L("Current class: ")..tostring(ABA.ClassKey()));
+    UIState.helpCards.INSIGHTS.counter:SetText(YNX_L("Open a section on the left to review live information."));
     local stats=CurrentStats();
     local c=skins[d.skin] or skins.shadow;
     if statPage=="order" and currentTab=="STATS" then
@@ -1750,16 +2116,41 @@ function UIState.RefreshSideCards(d)
         local bg=ABA.ManualColor("background") or c;local br=ABA.ManualColor("border") or {c[5],c[6],c[7]};
         p:SetBackdropColor(bg[1],bg[2],bg[3],d.frameKind=="float" and 0 or (c[4]*d.opacity));
         p:SetBackdropBorderColor(br[1],br[2],br[3],d.frameKind=="box" and 0.7 or 0);
-        local w,h=PopulateGhostHUD(p,stats,640,0);
+        local widthLimit=((key=="STATS" and statPage=="order") and 310 or 640)
+        -- SPELLS preview must show spell icons, not a second copy of STATS.
+        local shownStats=key=="SPELLS" and {} or stats;
+        local w,h=PopulateGhostHUD(p,shownStats,640,0);
         local totalH=math.max(30,h+d.hudPadding*2+2);
-        p:SetScale(math.max(0.20,math.min(d.scale or 1,((key=="STATS" and statPage=="order") and 310 or 640)/math.max(1,w),(key=="INSIGHTS" and 194 or 270)/totalH)));
+        p:SetScale(math.max(0.20,math.min(d.scale or 1,widthLimit/math.max(1,w),(key=="INSIGHTS" and 194 or 270)/totalH)));
+    end
+    if type(UIState.themedSubpages)=="table" then
+        for i=1,table.getn(UIState.themedSubpages) do
+            local b=UIState.themedSubpages[i];
+            if b and b.icon and b.iconKey then
+                b.icon:SetTexture(StatIconPath({icon=b.iconKey},d.iconTheme,false));
+                if d.iconTheme=="classic" then b.icon:SetTexCoord(0.08,0.92,0.08,0.92) else b.icon:SetTexCoord(0,1,0,1) end
+            end
+        end
+    end
+    local tracked=CurrentSpells();
+    local anchors=UIState.helpCards.SPELLS.previewSpellIcons or {};
+    local hint=UIState.helpCards.SPELLS.previewSpellHint;
+    if hint then if table.getn(tracked)==0 then hint:Show() else hint:Hide() end end
+    for i=1,table.getn(anchors) do
+        local holder=anchors[i];local sp=tracked[i];
+        if sp then
+            holder:ClearAllPoints();holder:SetPoint("TOPLEFT",UIState.helpCards.SPELLS.previewHUD,"TOPLEFT",11+math.mod(i-1,6)*101,-(58+math.floor((i-1)/6)*75));
+            holder.icon:SetTexture(ABA.SpellIcon(sp));
+            local name=ABA.SpellName(sp) or "Spell"; if string.len(name)>12 then name=string.sub(name,1,11).."." end
+            holder.label:SetText(name);holder:Show();
+        else holder:Hide() end
     end
 end
 
 function ABA.ToggleSettings()
     ABA.StopInteraction();
     if settings:IsShown() then settings:Hide()
-    else DockSettings();settings:Show();Top(settings);SelectTab(currentTab);if ABA.UpdateSettings then ABA.UpdateSettings() end end
+    else DockSettings();settings:Show();Top(settings);SelectTab(currentTab) end
 end
 -- Split Settings updates across small closures. Lua 5.0 allows at most
 -- 32 captured upvalues per function; a monolithic refresh exceeded that limit.
@@ -1767,14 +2158,14 @@ local function RefreshStatControls(d)
     statPage=d.statPage or statPage;
     for i,key in ipairs({"core","advanced","order","presets"}) do
         if key==statPage then statGroups[key]:Show() else statGroups[key]:Hide() end
-        Selected(statTabButtons[i],key==statPage);
+        Selected(UIState.statTabButtons[i],key==statPage);
     end
     local ordered=SortedSpecs();local counts={core=0,advanced=0};
     for i=1,table.getn(ordered) do
         local spec=ordered[i];local tier=spec.tier;
         counts[tier]=counts[tier]+1;
         local idx=counts[tier];local col=math.mod(idx-1,2);local line=math.floor((idx-1)/2);
-        local b=statSelectByKey[spec.key];
+        local b=UIState.statSelectByKey[spec.key];
         if b then
             b:ClearAllPoints();
             b:SetPoint("TOPLEFT",statGroups[tier],"TOPLEFT",col*184,-(line*29+2));
@@ -1782,30 +2173,38 @@ local function RefreshStatControls(d)
     end
     for i=1,table.getn(statSelect) do
         local item=statSelect[i];local on=ABA.IsEnabled(item.spec);
-        item.btn.label:SetText(item.spec.name);TogglePaint(item.btn,on);
+        -- Update stat-selection icons only when the selected art pack changes.
+        local iconPath=StatIconPath(item.spec,d.iconTheme,false);
+        if item.btn.iconPath~=iconPath then
+            item.btn.icon:SetTexture(iconPath);item.btn.iconPath=iconPath;
+            if d.iconTheme=="classic" then item.btn.icon:SetTexCoord(0.08,0.92,0.08,0.92)
+            else item.btn.icon:SetTexCoord(0,1,0,1) end
+        end
+        item.btn.label:SetText(YNX_L(item.spec.name));TogglePaint(item.btn,on);
         item.btn.state:SetText(on and "X" or "");
         item.btn.state:SetTextColor(on and 0.47 or 0.52,on and 0.95 or 0.63,on and 0.69 or 0.70);
         item.btn.label:SetTextColor(on and 0.57 or 0.53,on and 0.97 or 0.62,on and 0.66 or 0.66);
     end
-    for i=1,table.getn(presetButtons) do Selected(presetButtons[i].btn,d.activePreset==presetButtons[i].key) end
+    for i=1,table.getn(UIState.presetButtons) do Selected(UIState.presetButtons[i].btn,type(d.selectedPresets)=="table" and d.selectedPresets[UIState.presetButtons[i].key]) end
     local chosen={};for i=1,table.getn(ordered) do
         if ABA.IsEnabled(ordered[i]) then table.insert(chosen,ordered[i]) end
     end
     local items=ABA.SequenceForStats(chosen);
     local maxPage=math.max(1,math.ceil(table.getn(items)/8));
     orderIndex=math.min(orderIndex,maxPage);
-    orderPageLabel:SetText("Page "..orderIndex.." / "..maxPage);
+    UIState.orderPageLabel:SetText(YNX_L("Page ")..orderIndex.." / "..maxPage);
+    UIState.gapRow.value:SetText(UIState.gapRow.format(d.rowGap));
     for i=1,8 do
         local r=orderRows[i];local item=items[(orderIndex-1)*8+i];
         r.spec=item and item.stat or nil;r.extra=item and item.kind~="stat" and item or nil;
         if item then
             if item.stat then
-                r.title:SetText(tostring((orderIndex-1)*8+i)..". "..item.stat.name);
+                r.title:SetText(tostring((orderIndex-1)*8+i)..". "..YNX_L(item.stat.name));
                 r.title:SetTextColor(currentText[1],currentText[2],currentText[3]);
-                r.icon:SetTexture(MODERN..item.stat.icon..".tga");
+                r.icon:SetTexture(StatIconPath(item.stat,d.iconTheme,false));
                 r.up:Show();r.down:Show();r.add.txt:SetText("+");
             else
-                r.title:SetText("   "..(item.kind=="separator" and "ROW DIVIDER" or (item.kind=="columnSeparator" and "COLUMN DIVIDER" or "SPACER")));
+                r.title:SetText("   "..YNX_L(item.kind=="separator" and "ROW DIVIDER" or (item.kind=="columnSeparator" and "COLUMN DIVIDER" or "SPACER")));
                 r.title:SetTextColor(0.54,0.91,0.95);
                 r.icon:SetTexture(MODERN..(item.kind=="separator" and "area" or (item.kind=="columnSeparator" and "cnt" or "pick"))..".tga");
                 r.up:Hide();r.down:Hide();r.add.txt:SetText("X");
@@ -1815,18 +2214,18 @@ local function RefreshStatControls(d)
     end
     for i=1,3 do
         local item=type(d.customProfiles[i])=="table" and d.customProfiles[i] or nil;
-        local entry=slotButtons[i];
+        local entry=UIState.slotButtons[i];
         if not entry.edit.HasFocus or not entry.edit:HasFocus() then
             local text=item and type(item.name)=="string" and item.name or "";
             entry.edit:SetText(text);
         end
-        entry.status:SetText(item and ((d.activeProfileSlot==i and "ACTIVE: " or "SAVED: ")..tostring(item.name or "Profile "..i)) or "EMPTY SLOT  - enter a name and save");
+        entry.status:SetText(item and (YNX_L(d.activeProfileSlot==i and "ACTIVE: " or "SAVED: ")..tostring(item.name or YNX_L("Profile ")..i)) or YNX_L("EMPTY SLOT  - enter a name and save"));
         entry.load:SetAlpha(item and 1 or 0.35);
     end
 end
 local function RefreshSpellControls(d)
     TogglePaint(showSpells,d.spellVisible);
-    showSpells.txt:SetText("Show tracked spells on HUD");
+    showSpells.txt:SetText(YNX_L("Show tracked spells on HUD"));
     local src=type(AZS_SPELLS)=="table" and AZS_SPELLS or {};local pr=ABA.SpellProfile();
     for i=1,12 do
         local b=spellSelect[i];local sp=src[i];
@@ -1859,8 +2258,8 @@ local function RefreshProcControls(d)
         else b.procRow=nil;b.procName=nil;b:Hide() end
     end
     if table.getn(rows)==0 then
-        procPageLabel:SetText("No damage procs detected yet. Start a run and deal damage.")
-    else procPageLabel:SetText(tostring(table.getn(rows)).." proc sources observed  |  page "..procPage.." / "..pagesN) end
+        UIState.procPageLabel:SetText(YNX_L("No damage procs detected yet. Start a run and deal damage."))
+    else UIState.procPageLabel:SetText(tostring(table.getn(rows))..YNX_L(" proc sources observed  |  page ")..procPage.." / "..pagesN) end
 end
 -- Contextual help.  Shared control helper for simple toggles and steppers.
 local function Help(b,title,lines)
@@ -1868,33 +2267,33 @@ local function Help(b,title,lines)
     b:SetScript("OnEnter",function() Tip(b,title,lines) end);
     b:SetScript("OnLeave",HideTip);
 end
-Help(layoutToggle,"Edit layout",{"Enables MOVE and RESIZE handles together.","Turn off after positioning to keep HUD clean."});
+Help(layoutToggle,"Edit layout",{"Lets you drag the HUD and resize it directly in the game.","Turn it off when you are happy with the position."});
 for _,axis in ipairs({"x","y"}) do
-    Help(xyMinus[axis],"Position "..string.upper(axis),{"Moves 10 UI units toward the negative direction.","No invisible screen-edge clamp. RESET POSITION recovers an off-screen HUD."});
-    Help(xyPlus[axis],"Position "..string.upper(axis),{"Moves 10 UI units toward the positive direction.","X grows right, Y grows down."});
-    Help(coordFields[axis],"Exact "..string.upper(axis).." coordinate",{"Enter a signed number and press Enter to apply.","Coordinates are relative to UIParent's top-left origin.","Some clients extend the visible screen beyond that origin."});
+    Help(xyMinus[axis],"Position "..string.upper(axis),{"Moves the HUD 10 units in the negative direction.","Use RESET POSITION if the HUD ever ends up off-screen."});
+    Help(xyPlus[axis],"Position "..string.upper(axis),{"Moves the HUD 10 units in the positive direction.","X moves right, Y moves down."});
+    Help(coordFields[axis],YNX_L("Exact ")..string.upper(axis)..YNX_L(" position"),{"Type a number and press Enter to apply it.","These values are measured from the game UI's top-left corner."});
 end
 
-Help(autoWidth,"Automatic width",{"Fits the HUD to the displayed stat content.","Switch off to resize to a fixed width."});
-Help(showSpells,"Spell HUD",{"Shows tracked abilities and selected procs.","The PROCS page lists damage sources seen this run."});
-Help(clearSpells,"Clear tracked sources",{"Removes tracked abilities and procs for this class.","Saved named stat profiles are not affected."});
-local tabDescriptions={
+Help(autoWidth,"Automatic width",{"Fits the HUD to the space your current rows need.","Turn it off if you want to set a fixed width yourself."});
+Help(showSpells,"Spell HUD",{"Shows your tracked spell icons and selected proc entries.","The PROCS page lists damage sources seen during the current run."});
+Help(clearSpells,"Clear tracked sources",{"Removes tracked abilities and proc entries for this class.","Your saved stat profiles are not affected."});
+UIState.tabDescriptions={
  "Select, arrange and save monitored statistics.",
  "Show owned abilities and observed damage procs.",
  "Customize layout, skins, typography and feedback effects.",
  "Explore run totals, spell damage, trends and author notes."
 };
 for i=1,table.getn(tabButtons) do
-    Help(tabButtons[i],sectionKeys[i],{tabDescriptions[i]});
+    Help(tabButtons[i],sectionKeys[i],{UIState.tabDescriptions[i]});
 end
-local statDescriptions={
+UIState.statDescriptions={
  "Basic character statistics and their current values.",
  "Situational bonuses, DoT, pets, buffs and shields.",
  "The exact sequence of selected stats in the HUD.",
  "Build templates and your three editable named profiles."
 };
-for i=1,table.getn(statTabButtons) do
-    Help(statTabButtons[i],({"CORE","ADVANCED","ORDER","PRESETS"})[i],{statDescriptions[i]});
+for i=1,table.getn(UIState.statTabButtons) do
+    Help(UIState.statTabButtons[i],({"CORE","ADVANCED","ORDER","PRESETS"})[i],{UIState.statDescriptions[i]});
 end
 Help(spellPageButtons[1].btn,"Abilities",{"Select the spells owned by your current class.","Shows their icons on the compact HUD."});
 Help(spellPageButtons[2].btn,"Damage procs",{"Shows talent and item damage sources flagged by the meter.","Entries only appear after dealing actual damage."});
@@ -1907,19 +2306,19 @@ for i=1,table.getn(orderRows) do
     Help(r.down,"Move down",{"Moves this tracked stat one position toward the bottom."});
     Help(r.add,"Insert / remove element",{"Insert a full-row divider or spacer after this stat.","On an element row, click X to remove it."});
 end
-for i=1,table.getn(presetButtons) do
-    Help(presetButtons[i].btn,ABA.presets[i].name,{"Choose a monitoring starting point.","This replaces the current selection but not the HUD style.","Use ORDER to change their visible sequence."});
+for i=1,table.getn(UIState.presetButtons) do
+    Help(UIState.presetButtons[i].btn,ABA.presets[i].name,{"Click to add or remove this stat set.","You can combine multiple set cards; overlapping stats are not duplicated.","Use ORDER to change their visible sequence."});
 end
-local lookDescriptions={
+UIState.lookDescriptions={
  "HUD arrangement, width and spacing; drag the preview grip to resize.",
  "Choose a theme or use your own RGB hexadecimal colours.",
  "Visual frame silhouettes, borders and ready-made styles.",
- "Choose fonts, label styles and the Modern or Classic icons.",
+ "Choose fonts, label styles and the Modern, Arcane or Classic icons.",
  "Set bar widths, mark verified caps and customize fill/offsets.",
  "Animation intensity, gain effects, pulses and timing options."
 };
 for i=1,table.getn(lookTabs) do
-    Help(lookTabs[i],lookPages[i][1],{lookDescriptions[i]});
+    Help(lookTabs[i],lookPages[i][1],{UIState.lookDescriptions[i]});
 end
 for i=1,table.getn(insightTabs) do
     Help(insightTabs[i].btn,({"Run summary","Damage performance","Stat history","About YNX"})[i],
@@ -1934,20 +2333,21 @@ for i=1,table.getn(UIState.effectButtons) do
 end
 Help(UIState.glowBtn,"Value glow",{"Green for increases and red for decreases; a short fade-out.","No animation plays while Effects is OFF."});
 Help(UIState.milestoneBtn,"Milestone flash",{"Uses a gold flash when crossing a supported milestone."});
-Help(UIState.iconThemeBtn,"Icon art",{"MODERN: luminous framed icons.","CLASSIC: the original unframed stat symbols."});
-Help(settingsDrag,"Move Settings",{"Drag the title bar to move this window.","Click R to reset its position."});
+Help(UIState.iconThemeBtn,"Icon art",{"MODERN: luminous framed icons with charged variants.","ARCANE: magical artwork with bespoke powered-up states.","CLASSIC: the original unframed symbols with minimalist gain accents."});
+Help(UIState.percentBtn,"Percent sign",{"Hide or show the % symbol for percentage-based stats.","The numeric value remains the same either way."});
+Help(UIState.arcaneMotionBtn,"Icon reactions",{"When a tracked stat goes up, its icon briefly switches to its powered-up version.",
+    "Works in Arcane, Modern and Classic.","If ANIMATION INTENSITY is OFF, these reactions are hidden."});
+Help(settingsDrag,"Move Settings",{"Drag the title bar to move this window.","Press R to send it back to the centre of the screen."});
 Help(UIState.gaugeBtn,"Milestone bars",{"Shows progress for Crit, Haste, Echo, Armor and Speed.","Bars show defined goals or milestones, not always hard caps."});
 Help(UIState.barOptions.animate,"Smooth bar animation",{"Fills the progress bar gradually when the stat changes.","The transition speed is controlled below."});
 Help(UIState.barOptions.highlight,"Gain highlight",{"New progress glows until the FX gain-preview duration ends.","The glow does not change any other bar or the HUD width."});
 Help(UIState.barsReadyBtn,"Bars on ready screen",{"Shows progress before a run starts, using numeric values the game provides.","If there is no real number, no progress bar is invented."});
 for i,entry in ipairs(UIState.frameButtons) do
-    local names={"FLOAT","SOFT","BOX","ROUND","ROUNDLESS"};
+    local names={"FLOAT","BOX","ROUND"};
     local lines={
        {"No background or frame. Ideal for floating numbers."},
-       {"Background panel without an outline."},
-       {"Square panel with a visible border."},
-       {"Rounded masked corners and curved outline."},
-       {"Rounded background without a visible border."}
+       {"Square panel; lower BORDER WIDTH to soften the outline."},
+       {"Rounded panel with curved corners and outline."}
     };
     Help(entry.btn,names[i],lines[i]);
 end
@@ -1964,7 +2364,7 @@ for i,entry in ipairs(UIState.gaugeColorButtons) do
 end
 Help(UIState.spellCDBtn,"Cooldown labels",{"Show ability cooldown lengths on the HUD."});
 Help(UIState.spellDPSBtn,"Damage per second",{"Show tracked spell run DPS under the icon."});
-for _,step in ipairs({scaleRow,widthRow,UIState.iconRow,UIState.fontRow,opacityRow,gapRow,UIState.brightnessRow,UIState.durationRow,
+for _,step in ipairs({scaleRow,widthRow,UIState.iconRow,UIState.fontRow,opacityRow,UIState.gapRow,UIState.brightnessRow,UIState.durationRow,
     padRow,borderRow,UIState.iconGapRow,gaugeHeightRow,UIState.barOptions.length,UIState.barOptions.transition}) do
     Help(step.minus,step.key,{"Decrease value. Changes preview immediately."});
     Help(step.plus,step.key,{"Increase value. Changes preview immediately."});
@@ -2002,12 +2402,13 @@ local function RefreshTextAndEffects(d)
         Selected(UIState.styleButtons[i].btn,d.statStyle==UIState.styleButtons[i].key);
         Selected(UIState.effectButtons[i].btn,d.effectMode==UIState.effectButtons[i].key);
     end
-    TogglePaint(UIState.iconThemeBtn,d.iconTheme=="modern");
-    UIState.iconThemeBtn.txt:SetText("ICON ART: "..(d.iconTheme=="modern" and "MODERN" or "CLASSIC"));
-    UIState.fontFaceBtn.txt:SetText("HUD FONT: "..string.upper(d.valueFont or "clean"));
+    TogglePaint(UIState.iconThemeBtn,d.iconTheme=="arcane");
+    UIState.iconThemeBtn.txt:SetText(YNX_L("ICON ART: ")..YNX_L(string.upper(d.iconTheme)));
+    TogglePaint(UIState.arcaneMotionBtn,d.iconReactions);
+    UIState.fontFaceBtn.txt:SetText(YNX_L("HUD FONT: ")..YNX_L(string.upper(d.valueFont or "clean")));
     local states={{UIState.deltaBtn,d.showDelta,"GAIN PREVIEW"},{UIState.pulseBtn,d.pulse,"HEARTBEAT PULSE"},
         {UIState.glowBtn,d.glow,"COLOUR FLASH"},{UIState.milestoneBtn,d.milestoneFlash,"GOLD MILESTONE"},
-        {UIState.spellCDBtn,d.spellCD,"SPELL COOLDOWNS"},{UIState.spellDPSBtn,d.spellDPS,"SPELL DPS LABELS"}};
+        {UIState.spellCDBtn,d.spellCD,"SPELL COOLDOWNS"},{UIState.spellDPSBtn,d.spellDPS,"SPELL DPS LABELS"},{UIState.percentBtn,d.showPercent,"SHOW % SYMBOL"}};
     for i=1,table.getn(states) do
         local v=states[i];TogglePaint(v[1],v[2]);
     end
@@ -2021,10 +2422,12 @@ local function RefreshXYFields()
     if not ey then coordFields.y:SetText(tostring(math.floor(y+0.5))) end
 end
 function UIState.RefreshNewLook(d)
+    UIState.RefreshSpecThemeButton();
     local selected=d.lookPage or lookPage;
     local old={overview="layout",style="skins",motion="effects",colors="skins"};
     selected=old[selected] or selected;
     if not lookGroups[selected] then selected="layout" end
+    if selected~="skins" and UIState.specThemePopup then UIState.specThemePopup:Hide() end
     lookPage=selected;
     for i,info in ipairs(lookPages) do Selected(lookTabs[i],selected==info[2]) end
     for key,pane in pairs(lookGroups) do if key==selected then pane:Show() else pane:Hide() end end
@@ -2043,8 +2446,9 @@ function UIState.RefreshNewLook(d)
     for i=1,table.getn(skinButtons) do Selected(skinButtons[i].btn,d.skin==skinButtons[i].key) end
     for i=1,table.getn(UIState.colorButtons) do Selected(UIState.colorButtons[i].btn,d.accent==UIState.colorButtons[i].key) end
     for i=1,table.getn(UIState.iconTiles) do Selected(UIState.iconTiles[i].btn,d.iconTheme==UIState.iconTiles[i].key) end
+    UIState.UpdateLanguageButton();
     for i=1,table.getn(UIState.barFlags) do local r=UIState.barFlags[i];TogglePaint(r.btn,d[r.key]) end
-    UIState.markerStatus:SetText("GOALS: "..(d.showGoalMarkers and "ON" or "OFF").."   CONVERSION: "..(d.showConversionMarkers and "ON" or "OFF").."   CAPS: "..(d.showHardCapMarkers and "ON" or "OFF"));
+    UIState.markerStatus:SetText(YNX_L("GOALS: ")..YNX_L(d.showGoalMarkers and "ON" or "OFF")..YNX_L("   CONVERSION: ")..YNX_L(d.showConversionMarkers and "ON" or "OFF")..YNX_L("   CAPS: ")..YNX_L(d.showHardCapMarkers and "ON" or "OFF"));
     for i=1,table.getn(UIState.barWidthPresets) do
         local entry=UIState.barWidthPresets[i];Selected(entry.btn,math.abs(d.gaugeLength-entry.length)<0.005)
     end
@@ -2061,9 +2465,10 @@ end
 local function RefreshLookControls(d) UIState.RefreshNewLook(d) end
 local function RefreshInsightControls()
     for i=1,table.getn(insightTabs) do Selected(insightTabs[i].btn,insightPage==insightTabs[i].key) end
+    if UIState.insightBackgrounds then for key,tex in pairs(UIState.insightBackgrounds) do if key==insightPage then tex:Show() else tex:Hide() end end end
     if currentTab=="INSIGHTS" then
         local data=ABA.InsightLines and ABA.InsightLines(insightPage) or {"No live run data yet."};
-        for i=1,table.getn(insightLines) do insightLines[i]:SetText(data[i] or "") end
+        for i=1,table.getn(insightLines) do insightLines[i]:SetText(YNX_L(data[i] or "")) end
     end
 end
 local function RefreshSettings()
@@ -2078,6 +2483,34 @@ local function RefreshSettings()
     UIState.RefreshSideCards(d);
 end
 ABA.UpdateSettings=RefreshSettings;
+-- Live Settings data has a slow, dedicated update path. Rebuilding the large
+-- preview, colours and every control on each heartbeat is unnecessary.
+UIState.lastAbilityListSignature=nil;
+function ABA.RefreshLivePanels()
+    if not settings:IsShown() then return end
+    if currentTab=="INSIGHTS" then RefreshInsightControls()
+    elseif currentTab=="SPELLS" then
+        if spellPage=="procs" then
+            RefreshProcControls(ABA.DB());
+        else
+            -- Available spells seldom change. Only repaint the ability chooser
+            -- when the game adds/removes/upgrades an ability.
+            local src=type(AZS_SPELLS)=="table" and AZS_SPELLS or {};
+            local parts={};
+            for i=1,math.min(12,table.getn(src)) do
+                local sp=src[i];
+                if type(sp)=="table" then
+                    parts[i]=tostring(sp.key or "")..":"..tostring(sp.rank or "")
+                else parts[i]="" end
+            end
+            local signature=table.concat(parts,"|");
+            if signature~=UIState.lastAbilityListSignature then
+                UIState.lastAbilityListSignature=signature;
+                RefreshSpellControls(ABA.DB())
+            end
+        end
+    end
+end
 
 local function WidthOf(label,fallback)
     if label and type(label.GetStringWidth)=="function" then
@@ -2112,6 +2545,7 @@ Gauge=function(row,stat,width)
         row.gaugeShown=info.progress;row.gaugeStat=stat.key;row.gaugeAt=nil;row.gaugeStart=info.progress;row.gainUntil=nil
     elseif math.abs(row.gaugeShown-info.progress)>0.0001 and row.gaugeTargetPrevious~=info.progress then
         row.gaugeStart=row.gaugeShown;row.gaugeAt=GetTime();row.gainUntil=row.gaugeAt+d.deltaDuration;
+        ABA.fxUntil=math.max(ABA.fxUntil or 0,row.gainUntil+0.08);
         if not d.gaugeAnimation then row.gaugeShown=info.progress;row.gaugeAt=nil end
     end
     row.gaugeTargetPrevious=info.progress;
@@ -2146,22 +2580,25 @@ local function StatLayout(list)
     for i=1,table.getn(statWidgets) do
         local row=statWidgets[i];local spec=list[i];
         if spec then
-            row.stat=spec;row.icon:SetTexture((d.iconTheme=="modern" and MODERN or MEDIA)..spec.icon..".tga");
-            row.icon:SetTexCoord(d.iconTheme=="modern" and 0 or 0.08,d.iconTheme=="modern" and 1 or 0.92,d.iconTheme=="modern" and 0 or 0.08,d.iconTheme=="modern" and 1 or 0.92);
+            if row.stat~=spec then
+                row.fxRunning=false;row.milestoneEvent=nil;row.lastTextEvent=nil;
+                row.lastTextDelta=nil;row.lastAnimatedText=nil;
+            end
+            row.stat=spec;ApplyStatIcon(row,spec,d,false);
             row.icon:SetWidth(size);row.icon:SetHeight(size);
             row.halo:SetWidth(size+7);row.halo:SetHeight(size+7);
             if d.iconTheme=="modern" and d.frameKind~="float" then
                 row.halo:SetVertexColor(0.28,0.72,0.95,0.38);row.halo:Show()
             else row.halo:Hide() end
             local lum=d.iconBrightness;row.icon:SetVertexColor(lum,lum,lum,1);
-            SetHUDValueFont(row.value,d.fontSize,"OUTLINE");row.value:SetText(ABA.DisplayValue(spec));
+            SetHUDValueFont(row.value,d.fontSize,"OUTLINE");row.lastAnimatedText=ABA.DisplayValue(spec);row.value:SetText(row.lastAnimatedText);
             SetHUDValueFont(row.delta,math.max(9,d.fontSize-2),"OUTLINE");
             -- Measure the normal numeric value, never the temporary long preview.
             SetHUDValueFont(row.measure,d.fontSize,"OUTLINE");
             row.measure:SetText(ABA.ValueFrom(spec,(type(AZS_STATS)=="table" and AZS_STATS[spec.key]) or nil));
             row.value:SetTextColor(currentText[1],currentText[2],currentText[3]);
             row.name:SetTextColor(currentSecondary[1],currentSecondary[2],currentSecondary[3]);
-            row.name:SetText(spec.short);SetYNXFont(row.name,math.max(9,d.fontSize-2),"OUTLINE");
+            row.name:SetText(YNX_L(spec.short));SetYNXFont(row.name,math.max(9,d.fontSize-2),"OUTLINE");
             local required=RowWidth(row,spec,d);row.required=required;requiredCell=math.max(requiredCell,required);
         else row.stat=nil;row:Hide() end
     end
@@ -2224,7 +2661,7 @@ local function SpellLayout(spells,y,width)
                 local m=ABA.FindMeter(sp);local txt=m and string.format("%.0fd",m.dps or 0) or "--d";
                 label=label~="" and label.."\n"..txt or txt;
             end
-            row.detail:SetText(label);row:Show();
+            row.detail:SetText(label);row.lastDetail=label;row:Show();
         else row.spell=nil;row:Hide() end
     end
     if count==0 then return 0 end return math.ceil(count/cols)*rowH;
@@ -2237,7 +2674,8 @@ local function ProcLayout(rows,y,width)
         local r=procWidgets[i];local data=rows[i];
         if data then
             r.procRow=data;r.ico:SetTexture(ABA.ProcIcon(data));
-            r.txt:SetText(string.format("%.1f DPS",data.dps or 0));
+            local label=string.format("%.1f DPS",data.dps or 0);
+            r.txt:SetText(label);r.lastDPS=label;
             r:SetWidth(117);r:ClearAllPoints();
             r:SetPoint("TOPLEFT",hud,"TOPLEFT",ABA.DB().hudPadding+math.mod(i-1,cols)*120,-(y+math.floor((i-1)/cols)*25));
             r:Show();
@@ -2248,13 +2686,14 @@ local function ProcLayout(rows,y,width)
 end
 local lastPhase="";
 function ABA.Update(force)
+    if ABA.perf then ABA.perf.layoutUpdates=ABA.perf.layoutUpdates+1 end
     local phase=ABA.Phase();local d=ABA.DB();
     ABA.statsLive=(phase=="playing" or phase=="choosing" or phase=="paused" or phase=="dead" or phase=="victory");
     if not d.pinned then
         ABA.StopInteraction();hud:Hide();settings:Hide();moveHandle:Hide();resizeGrip:Hide();return
     end
-    ApplySkin();local stats=CurrentStats();local spells=ABA.statsLive and CurrentSpells() or {};
-    local procs=ABA.statsLive and d.spellVisible and ABA.TrackedProcs() or {};
+    ApplySkin();local stats=CurrentStats();local spells=CurrentSpells();
+    local procs=ABA.statsLive and d.spellVisible and CurrentProcs() or {};
     if table.getn(stats)==0 and table.getn(spells)==0 and table.getn(procs)==0 then emptyHint:Show() else emptyHint:Hide() end
     local width,statH=StatLayout(stats);local gap=statH>0 and table.getn(spells)>0 and 5 or 0;
     local spellH=SpellLayout(spells,5+statH+gap,width);
@@ -2263,19 +2702,80 @@ function ABA.Update(force)
     local procH=ProcLayout(procs,5+statH+gap+spellH+pGap,width);
     hud:SetHeight(math.max((d.frameKind=="round" or d.frameKind=="softround") and 36 or 26,statH+spellH+procH+gap+pGap+d.hudPadding*2+2));hud:SetScale(d.scale);
     if not moveDrag then PutAt(posX,posY,false) end
-    PositionHandles();ApplySkin();local justShown=not hud:IsShown();hud:Show();RefreshHandles();
+    PositionHandles();local justShown=not hud:IsShown();hud:Show();RefreshHandles();
     if justShown or lastPhase~=phase then Top(hud) end
-    if settings:IsShown() then DockSettings();RefreshSettings() end
+    if settings:IsShown() then
+        DockSettings();
+        if force then RefreshSettings() end
+    end
     lastPhase=phase;
 end
+-- Refresh tracked spell data without measuring or laying out the whole HUD.
+-- Only added, removed or re-ordered entries require a real layout rebuild.
+function ABA.RefreshSpellHUD()
+    local d=ABA.DB();
+    if not d.pinned or not d.spellVisible or not hud:IsShown() then return false end
+    local spells=CurrentSpells();
+    local procs=ABA.statsLive and CurrentProcs() or {};
+    for i=1,table.getn(spellWidgets) do
+        local old=spellWidgets[i].spell;local new=spells[i];
+        if (old and old.key)~=(new and new.key) then
+            if ABA.perf then ABA.perf.spellLayouts=ABA.perf.spellLayouts+1 end
+            ABA.Update();return true
+        end
+        if new then spellWidgets[i].spell=new end -- Keep hover tooltips current.
+    end
+    for i=1,table.getn(procWidgets) do
+        local old=procWidgets[i].procRow;local new=procs[i];
+        if (old and old.name)~=(new and new.name) then
+            if ABA.perf then ABA.perf.spellLayouts=ABA.perf.spellLayouts+1 end
+            ABA.Update();return true
+        end
+    end
+    -- Spell cooldown/damage labels can change independently of tracked stats.
+    if d.spellCD or d.spellDPS then
+        local meterRows={};
+        if d.spellDPS then
+            if type(AZS_METER)=="table" then meterRows=AZS_METER
+            elseif type(AZS_GetMeter)=="function" then
+                local ok,rows=pcall(AZS_GetMeter);
+                if ok and type(rows)=="table" then meterRows=rows end
+            end
+        end
+        for i=1,table.getn(spellWidgets) do
+            local row=spellWidgets[i];local sp=spells[i];
+            if sp then
+                local label="";
+                if d.spellCD and type(sp.cdmax)=="number" then label=string.format("%.1fs",sp.cdmax) end
+                if d.spellDPS then
+                    local meter=ABA.FindMeter(sp,meterRows);
+                    local value=meter and string.format("%.0fd",meter.dps or 0) or "--d";
+                    label=label~="" and label.."\n"..value or value;
+                end
+                if row.lastDetail~=label then row.detail:SetText(label);row.lastDetail=label end
+            end
+        end
+    end
+    for i=1,table.getn(procWidgets) do
+        local row=procWidgets[i];local proc=procs[i];
+        if proc then
+            row.procRow=proc; -- tooltips must reflect the latest meter values
+            local label=string.format("%.1f DPS",proc.dps or 0);
+            if row.lastDPS~=label then row.txt:SetText(label);row.lastDPS=label end
+        end
+    end
+    return false
+end
 -- Event-driven effects: value text grows briefly, not the frame or its hit area.
-local lastFontState={};
-function UIState.AnimateRow(row,elapsed,previewEvent)
+UIState.lastFontState={};
+function UIState.AnimateRow(row,elapsed,previewEvent,now,d,gainTint)
     if not row.stat then return end
-    local d=ABA.DB();local gainTint=ABA.ManualColor("gain");
+    d=d or ABA.DB();
+    if gainTint==nil then gainTint=ABA.ManualColor("gain") end
+    if gainTint==false then gainTint=nil end
+    now=now or GetTime();
     row.delta:Hide(); -- single short gain expression replaces the current number for the preview
     if row.gaugeLength and type(row.gaugeShown)=="number" and type(row.gaugeTarget)=="number" then
-        local now=GetTime();
         local elapsedSince=row.gaugeAt and math.max(0,now-row.gaugeAt) or 99;
         if d.gaugeAnimation and row.gaugeAt and elapsedSince<d.gaugeTransition then
             local t=math.min(1,elapsedSince/d.gaugeTransition);t=1-(1-t)*(1-t)*(1-t);
@@ -2299,15 +2799,25 @@ function UIState.AnimateRow(row,elapsed,previewEvent)
             else row.gain:Hide();row.glint:Hide() end
         else row.gain:Hide();row.glint:Hide() end
     end
-    local x=previewEvent or ABA.statChanged[row.stat.key];local age=x and (GetTime()-x.at) or 999;
+    local x=previewEvent or ABA.statChanged[row.stat.key];local age=x and (now-x.at) or 999;
     local isUp=x and ((row.stat.kind=="cooldown" and x.after<x.before) or (row.stat.kind~="cooldown" and x.after>x.before));
-    if previewEvent then
-        -- Identical gain text as ABA.DisplayValue, but without mutating AZS_STATS
-        -- or ABA.statChanged; this preview never changes the real HUD.
-        if d.showDelta and d.effectMode~="off" and age>=0 and age<d.deltaDuration then
-            row.value:SetText(ABA.ChangeAmount(row.stat,x.before,x.after))
-        else row.value:SetText(ABA.ValueFrom(row.stat,x.after)) end
-    else row.value:SetText(ABA.DisplayValue(row.stat)) end
+    -- Two-frame icon reactions use *existing* stat events and keep fixed HUD
+    -- dimensions. A short activation returns to the idle texture automatically.
+    local active=d.iconReactions and d.effectMode~="off"
+        and isUp and age>=0 and age<0.48 and (previewEvent or ABA.statsLive);
+    ApplyStatIcon(row,row.stat,d,active);
+    -- A text setter every 1/30s still causes needless font-string work.
+    -- The value only needs repainting when the displayed text has changed.
+    local deltaActive=d.showDelta and d.effectMode~="off" and x and age>=0 and age<d.deltaDuration;
+    if row.lastTextEvent~=x or row.lastTextDelta~=deltaActive or not row.lastAnimatedText then
+        local visibleText;
+        if previewEvent then
+            if deltaActive then visibleText=ABA.ChangeAmount(row.stat,x.before,x.after)
+            else visibleText=ABA.ValueFrom(row.stat,x.after) end
+        else visibleText=ABA.DisplayValue(row.stat) end
+        if visibleText~=row.lastAnimatedText then row.value:SetText(visibleText);row.lastAnimatedText=visibleText end
+        row.lastTextEvent=x;row.lastTextDelta=deltaActive;
+    end
     if (not previewEvent and not ABA.statsLive) or d.effectMode=="off" or not x or age<0 or age>d.deltaDuration then
         if row.lastPulse~=0 then SetHUDValueFont(row.value,d.fontSize,"OUTLINE");row.lastPulse=0 end
         row.value:SetTextColor(currentText[1],currentText[2],currentText[3]);row.flash:SetVertexColor(0.10,0.75,0.29,0);
@@ -2332,12 +2842,17 @@ function UIState.AnimateRow(row,elapsed,previewEvent)
         row.icon:SetWidth(d.iconSize);row.icon:SetHeight(d.iconSize);
         if d.iconTheme=="modern" and d.frameKind~="float" then row.halo:SetAlpha(1); row.halo:SetVertexColor(0.28,0.72,0.95,0.38); row.halo:Show() else row.halo:Hide() end
     end
-    local milestoneHit=false;
-    if d.milestoneFlash and x then
-        local before=ABA.GetMilestone and ABA.GetMilestone(row.stat.key,{[row.stat.key]=x.before});
-        local after=ABA.GetMilestone and ABA.GetMilestone(row.stat.key,{[row.stat.key]=x.after});
-        milestoneHit=before and after and not before.complete and after.complete;
+    -- Milestones depend on the gain event, not the animation frame. Evaluate
+    -- once per event instead of twice per animated row on every FX tick.
+    if row.milestoneEvent~=x then
+        row.milestoneEvent=x;row.milestoneHit=false;
+        if d.milestoneFlash and x and ABA.GetMilestone then
+            local before=ABA.GetMilestone(row.stat.key,{[row.stat.key]=x.before});
+            local after=ABA.GetMilestone(row.stat.key,{[row.stat.key]=x.after});
+            row.milestoneHit=before and after and not before.complete and after.complete;
+        end
     end
+    local milestoneHit=d.milestoneFlash and row.milestoneHit;
     if milestoneHit then row.value:SetTextColor(1,0.80,0.30)
     elseif isUp then row.value:SetTextColor(gainTint and gainTint[1] or 0.42,gainTint and gainTint[2] or 0.98,gainTint and gainTint[3] or 0.54)
     else row.value:SetTextColor(1.0,0.45,0.43) end
@@ -2347,12 +2862,33 @@ function UIState.AnimateRow(row,elapsed,previewEvent)
         else row.flash:SetVertexColor(0.98,0.15,0.16,fade) end
     else row.flash:SetVertexColor(0.10,0.75,0.29,0) end
 end
+UIState.animationElapsed=0;
 hud:SetScript("OnUpdate",function()
-    local elapsed=arg1;
+    local elapsed=arg1 or 0;
+    -- Keep manual dragging at native frame rate so it remains responsive.
     if moveDrag then if not GestureTick(moveDrag,EndMove,elapsed) then MoveAtCursor() end end
     if resizeDrag then if not GestureTick(resizeDrag,EndResize,elapsed) then ResizeAtCursor() end end
+    -- Idle HUDs should not scan every possible stat row 30 times per second.
+    if not ABA.fxUntil or ABA.fxUntil==0 then return end
+    UIState.animationElapsed=UIState.animationElapsed+elapsed;
+    if UIState.animationElapsed<1/30 then return end
+    UIState.animationElapsed=0;
+    local now=GetTime();
+    if now>ABA.fxUntil then ABA.fxUntil=0;return end
+    local d=ABASettingsDB or ABA.DB();local tint=nil;local tintReady=false;
     for i=1,table.getn(statWidgets) do
-        local row=statWidgets[i];if row.stat and row:IsShown() then UIState.AnimateRow(row,elapsed) end
+        local row=statWidgets[i];
+        if row.stat and row:IsShown() then
+            local x=ABA.statChanged[row.stat.key];
+            local recent=x and now>=x.at and now-x.at<=d.deltaDuration;
+            local moving=row.gaugeAt~=nil or (row.gainUntil and now<row.gainUntil);
+            if recent or moving or row.fxRunning then
+                if not tintReady then tint=ABA.ManualColor("gain") or false;tintReady=true end
+                UIState.AnimateRow(row,elapsed,nil,now,d,tint);
+                if ABA.perf then ABA.perf.fxRows=ABA.perf.fxRows+1 end
+                row.fxRunning=recent or moving;
+            end
+        end
     end
 end);
 hud:Hide();ABA.hud=hud;ABA.settingsPanel=settings;ABA.SelectTab=SelectTab;ABA.statWidgets=statWidgets;
@@ -2360,8 +2896,8 @@ ABA.moveHandle=moveHandle;ABA.resizeGrip=resizeGrip;ABA.layoutToggle=layoutToggl
 ABA.scalePlus=scaleRow.plus;ABA.scaleMinus=scaleRow.minus;ABA.widthPlus=widthRow.plus;ABA.widthMinus=widthRow.minus;
 ABA.coordFields=coordFields;ABA.xyMinus=xyMinus;ABA.xyPlus=xyPlus;
 ABA.resetButton=resetPosition;ABA.lookGroups=lookGroups;ABA.statGroups=statGroups;
-ABA.statTabButtons=statTabButtons;ABA.lookTabs=lookTabs;ABA.insightTabs=insightTabs;
-ABA.presetButtons=presetButtons;ABA.skinButtons=skinButtons;ABA.spellSelect=spellSelect;
+ABA.statTabButtons=UIState.statTabButtons;ABA.lookTabs=lookTabs;ABA.insightTabs=insightTabs;
+ABA.presetButtons=UIState.presetButtons;ABA.skinButtons=skinButtons;ABA.spellSelect=spellSelect;
 ABA.procSelect=procSelect;ABA.procWidgets=procWidgets;ABA.spellPageButtons=spellPageButtons;
 ABA.statSelect=statSelect;ABA.styleButtons=UIState.styleButtons;ABA.effectButtons=UIState.effectButtons;
 ABA.layoutModeButtons=layoutModeButtons;ABA.colsButtons=colsButtons;ABA.colorButtons=UIState.colorButtons;
@@ -2369,6 +2905,6 @@ ABA.frameButtons=UIState.frameButtons;ABA.hudStyleButtons=UIState.hudStyleButton
 ABA.gaugeColorButtons=UIState.gaugeColorButtons;ABA.barsReadyBtn=UIState.barsReadyBtn;
 ABA.gaugeBtn=UIState.gaugeBtn;ABA.roundedParts=roundedParts;
 ABA.barOptions=UIState.barOptions;
-ABA.utilityButtons={};ABA.slotButtons=slotButtons;ABA.orderRows=orderRows;ABA.sectionButtons=tabButtons;
+ABA.utilityButtons={};ABA.slotButtons=UIState.slotButtons;ABA.orderRows=orderRows;ABA.sectionButtons=tabButtons;
 ABA.insightLines=insightLines;ABA.preview=UIState.preview;
 SelectTab("LOOK");

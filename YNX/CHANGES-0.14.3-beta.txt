@@ -1,6 +1,0 @@
-YNX 0.14.3 beta - Live preview interaction fix
-- Live preview uses the real HUD layout width independently of viewport size.
-- Drag the preview right-edge <> grip or use -/+ controls to resize the actual HUD.
-- Direct resize disables Auto Width so the new size persists.
-- Preview animation invokes the same AnimateRow renderer used by the real HUD.
-- Simulated preview gain never changes actual game statistics.

@@ -37,7 +37,7 @@ end
 local function Text(frame,content,size)
     local font=frame:CreateFontString(nil,"OVERLAY");
     font:SetFont("Fonts\\FRIZQT__.TTF",size or 12,"OUTLINE");
-    font:SetText(content);font:SetTextColor(0.90,0.95,1);return font;
+    font:SetText(YNX_L(content));YNX_RegisterFont(font,content);font:SetTextColor(0.90,0.95,1);return font;
 end
 local function PickerButton(parent,caption,x,y,w,onClick)
     local b=CreateFrame("Button",nil,parent);b:SetWidth(w);b:SetHeight(29);

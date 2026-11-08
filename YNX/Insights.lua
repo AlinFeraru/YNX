@@ -89,20 +89,20 @@ function ABA.InsightLines(page)
     if page=="run" then
         table.insert(result,"RUN OVERVIEW");
         if ABA.statsLive then
-            table.insert(result,"Time "..Tm(RunTime()).."     Level "..tostring(data.lvl or "--"));
-            table.insert(result,"Kills "..Round(data.kills).."     Damage "..Round(data.dealt));
-            table.insert(result,"Gold "..Round(data.ge or data.gold).."     Bosses "..Round(data.bk));
-            table.insert(result,"Guardians slain "..Round(data.gk).."     Damage taken "..Round(data.taken));
+            table.insert(result,YNX_L("Time ")..Tm(RunTime())..YNX_L("     Level ")..tostring(data.lvl or "--"));
+            table.insert(result,YNX_L("Kills ")..Round(data.kills)..YNX_L("     Damage ")..Round(data.dealt));
+            table.insert(result,YNX_L("Gold ")..Round(data.ge or data.gold)..YNX_L("     Bosses ")..Round(data.bk));
+            table.insert(result,YNX_L("Guardians slain ")..Round(data.gk)..YNX_L("     Damage taken ")..Round(data.taken));
         else table.insert(result,"Start a run to see current performance.") end
         table.insert(result,"LAST FINISHED RUNS (up to 8 saved)");
         for i=1,math.min(6,table.getn(h)) do
             local item=h[i];
             table.insert(result,tostring(i)..". "..tostring(item.class or "?").." "..tostring(item.result or "?")..
-                "  "..Tm(item.time).."  "..Round(item.damage).." dmg");
+                "  "..Tm(item.time).."  "..Round(item.damage)..YNX_L(" dmg"));
         end
         if table.getn(h)>1 then
             local a,b=h[1],h[2];
-            table.insert(result,"Latest vs prior: "..string.format("%+.0f",(a.damage or 0)-(b.damage or 0)).." damage");
+            table.insert(result,YNX_L("Latest vs prior: ")..string.format("%+.0f",(a.damage or 0)-(b.damage or 0))..YNX_L(" damage"));
         end
     elseif page=="spells" then
         table.insert(result,"SPELL PERFORMANCE (run total)");
@@ -111,11 +111,11 @@ function ABA.InsightLines(page)
             if type(rows[i])=="table" then table.insert(sorted,rows[i]) end
         end
         table.sort(sorted,function(a,b) return (a.dmg or 0)>(b.dmg or 0) end);
-        table.insert(result,"Total damage: "..Round(total).."     DPS: "..Round(dps));
+        table.insert(result,YNX_L("Total damage: ")..Round(total)..YNX_L("     DPS: ")..Round(dps));
         for i=1,math.min(10,table.getn(sorted)) do
             local spell=sorted[i];local title=tostring(spell.name or spell.key or "Ability");
             if string.len(title)>18 then title=string.sub(title,1,17).."." end
-            table.insert(result,(spell.proc==1 and "[PROC] " or "")..title.."  "..Round(spell.dmg).." dmg  "..Round(spell.dps).." DPS");
+            table.insert(result,(spell.proc==1 and YNX_L("[PROC] ") or "")..title.."  "..Round(spell.dmg)..YNX_L(" dmg  ")..Round(spell.dps).." DPS");
         end
         if table.getn(sorted)==0 then table.insert(result,"No damage-meter data yet.") end
     elseif page=="trends" then
@@ -124,13 +124,13 @@ function ABA.InsightLines(page)
             table.insert(result,"Run for at least 15 seconds to start tracking trends.");
         else
             local first=r.samples[1];local last=r.samples[table.getn(r.samples)];
-            table.insert(result,"From "..Tm(first.t).." to "..Tm(last.t));
+            table.insert(result,YNX_L("From ")..Tm(first.t)..YNX_L(" to ")..Tm(last.t));
             local keys={"dmg","cd","crit","cm","echo","arm","area","hp","doth","big"};
             for _,key in ipairs(keys) do
                 local v1=first.stats[key];local v2=last.stats[key];
                 if type(v1)=="number" and type(v2)=="number" then
                     local label=key;
-                    for _,s in ipairs(ABA.stats) do if s.key==key then label=s.name end end
+                    for _,s in ipairs(ABA.stats) do if s.key==key then label=YNX_L(s.name) end end
                     table.insert(result,label..": "..NiceStat(key,v1).."  ->  "..NiceStat(key,v2));
                 end
             end
@@ -152,5 +152,6 @@ function ABA.InsightLines(page)
         table.insert(result,"");
         table.insert(result,"Designed for your playstyle.  - Ynx");
     end
+    for i=1,table.getn(result) do result[i]=YNX_L(result[i]) end
     return result;
 end

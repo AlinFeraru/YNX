@@ -29,30 +29,30 @@ function ABA.GetMilestone(key, stats)
         v = (1 - n) * 100; goal = 75; marker = 60 / 75; kind = "GOAL";
         if v >= 75 - 0.001 then state = "75% GOAL MET (not cap)";
         elseif v >= 60 - 0.001 then state = "60% GOAL MET / 75% NEXT";
-        else state = string.format("%.0f%% TO 60%% GOAL", math.max(0, 60-v)) end
+        else state = string.format(YNX_L("%.0f%% TO 60%% GOAL"), math.max(0, 60-v)) end
     elseif key == "crit" then
         v = n * 100; goal = 100; kind = "MILESTONE";
         if v >= 100 - 0.001 then
-            state = v > 100.001 and string.format("GUARANTEED + %.1f%% OVERFLOW", v-100) or "100% CRITS GUARANTEED";
-        else state = string.format("%.1f%% TO GUARANTEED", 100-v) end
+            state = v > 100.001 and string.format(YNX_L("GUARANTEED + %.1f%% OVERFLOW"), v-100) or "100% CRITS GUARANTEED";
+        else state = string.format(YNX_L("%.1f%% TO GUARANTEED"), 100-v) end
     elseif key == "echo" then
         v = n * 100; goal = 100; kind = "MILESTONE";
         if v >= 100 - 0.001 then
             local guaranteed = math.floor((v+0.001)/100);
             local left = v - guaranteed * 100;
-            state = string.format("+%d GUARANTEED / %.1f%% NEXT", guaranteed, math.max(0,left));
-        else state = string.format("%.1f%% TO EXTRA STRIKE", 100-v) end
+            state = string.format(YNX_L("+%d GUARANTEED / %.1f%% NEXT"), guaranteed, math.max(0,left));
+        else state = string.format(YNX_L("%.1f%% TO EXTRA STRIKE"), 100-v) end
     elseif key == "arm" then
         v = n * 100; kind = "HARD";
         -- No publicly documented AZS boolean reliably indicates the Titan capstone.
         -- If the game actually reports >60%, the base 60% cap was extended.
         goal = v > 60.001 and 70 or 60;
         if v >= goal-0.001 then state = goal==70 and "70% TITAN CAP?" or "60% DEFAULT CAP";
-        else state = string.format("%.1f%% TO %d%% CAP", goal-v, goal) end
+        else state = string.format(YNX_L("%.1f%% TO %d%% CAP"), goal-v, goal) end
     elseif key == "spd" then
         v = (n-1)*100; goal = 120; kind = "HARD";
         if v >= 120 - 0.001 then state = "+120% SPEED CAP";
-        else state = string.format("%.0f%% TO SPEED CAP", 120-v) end
+        else state = string.format(YNX_L("%.0f%% TO SPEED CAP"), 120-v) end
     else return nil end
     local pct = math.max(0, math.min(1, v / goal));
     -- GOAL is a build target, MILESTONE is a guaranteed mechanic,
@@ -62,7 +62,7 @@ function ABA.GetMilestone(key, stats)
         markerType=marker and "goal" or nil,
         hardCap=(kind=="HARD") and goal or nil,
         milestone=(kind=="MILESTONE") and goal or nil,
-        kind=kind, state=state, tooltip=ABA.milestoneInfo[key] or "",
+        kind=kind, state=YNX_L(state), tooltip=YNX_L(ABA.milestoneInfo[key] or ""),
         complete=v>=goal-0.001, overflow=v>goal+0.001};
 end
 
@@ -72,6 +72,6 @@ function ABA.SpellFloor(sp)
     local minCD = 0.25;
     if string.lower(name) == "hellfire" then minCD = 0.5 end
     if string.lower(name) == "divine shield" then return nil end
-    if sp.cdmax <= minCD + 0.011 then return "CD FLOOR" end
+    if sp.cdmax <= minCD + 0.011 then return YNX_L("CD FLOOR") end
     return nil;
 end
