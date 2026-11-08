@@ -1,13 +1,21 @@
 # Feedback and contributions
 
-**Please report bugs and suggest improvements.** Use [GitHub Issues](https://github.com/AlinFeraru/YNX/issues/new/choose) or comment on the [SurvivorsForge listing](https://forge.rezondes.net/addons/ynx).
+Please [report bugs or suggest improvements](https://github.com/AlinFeraru/YNX/issues/new/choose). You can also comment on [SurvivorsForge](https://forge.rezondes.net/addons/ynx/comments).
 
-For a bug report, include:
-- YNX version (currently v0.15.4) and game/client version, if known.
-- Exact steps to reproduce, expected behaviour and actual behaviour.
-- Complete Lua error text and a screenshot when available.
-- Whether it reproduces with other UI add-ons disabled, if you've tried.
+## Bug reports
 
-For suggestions, explain the player problem and describe the expected UI or behaviour. Visual mockups are welcome.
+Please include:
+- **YNX version:** copy it from your installed addon (the current public release is [v0.16.10](https://github.com/AlinFeraru/YNX/releases/tag/v0.16.10)).
+- **Azeroth Survivors client/build**, if known.
+- Steps to reproduce the issue.
+- Expected versus actual behaviour.
+- Exact Lua error text and screenshots when available.
+- Whether the issue reproduces with other UI addons disabled, if tested.
 
-No separate source-code redistribution or contribution licence has yet been selected; contact Ynx before submitting third-party code or republishing modified sources.
+## Feature requests
+
+Explain the player-facing problem, how the change would help, and what you want the interface to show or do. Mockups are welcome.
+
+**Installable package:** use the **`YNX.zip`** release asset, not GitHub's automatically generated source archive.
+
+No separate source-code redistribution or contribution license has been selected. Contact the author before contributing third-party code or republishing modified source.

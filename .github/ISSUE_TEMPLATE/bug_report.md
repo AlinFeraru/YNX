@@ -4,7 +4,7 @@ about: Something in YNX isn't working
 labels: bug
 ---
 
-**YNX version:** v0.15.4
+**YNX version (check your installed addon; e.g. v0.16.10):**
 
 **Azeroth Survivors client/version (if known):**
 
@@ -19,8 +19,8 @@ labels: bug
 
 **Exact Lua error, if present:**
 
-**Does it happen with other UI add-ons disabled?** (if tested)
+**Does it happen with other UI addons disabled?** (if tested)
 
 **Screenshots (optional):**
 
-Please do not include private account information or sensitive SavedVariables.
+Please confirm you installed the `YNX.zip` release asset, not GitHub's generated source ZIP. Do not include private account details or sensitive SavedVariables.
