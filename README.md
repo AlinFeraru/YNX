@@ -61,6 +61,6 @@ Found a visual problem, incorrect stat, Lua error, or a feature worth adding? Pl
 
 YNX targets the **WoW 1.12 / Lua 5.0-compatible** environment used by Azeroth Survivors. The addon is an independent community project and is not officially affiliated with Azeroth Survivors or Blizzard.
 
-**Source availability:** The repository's **`YNX/`** folder currently reflects an older source snapshot; **the v0.16.10 release asset contains the updated addon**. Do not assume the GitHub-generated source archive is equivalent to the release ZIP.
+**Source availability:** The **`YNX/`** folder on **`main`** is now synchronized with the v0.16.10 release asset. The existing **v0.16.10 tag** was created before that sync, so GitHub's automatically generated *Source code* archives for that tag still reflect the earlier commit. For installation, use the uploaded **`YNX.zip`** asset.
 
 **Licensing:** No separate source-code redistribution or derivative-works license has been selected. Contact the author before redistributing modified source.

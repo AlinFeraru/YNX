@@ -27,6 +27,6 @@ Fixed a Lua runtime error in the colour picker caused by a stale palette-label r
 
 Preserve **`ABASettingsDB`** SavedVariables to retain settings and profiles.
 
-**Important:** This release's **`YNX.zip`** asset is the installable addon. The repository's `YNX/` source tree and GitHub's auto-generated source archives may reflect an earlier snapshot.
+**Important:** The **`YNX/`** source directory on **`main`** is synchronized with the verified v0.16.10 release ZIP. However, the published tag predates that source-sync commit, so GitHub's generated *Source code* archives for the tag are older. Download the uploaded **`YNX.zip`** release asset for installation.
 
 For help, see [Configuration](docs/CONFIGURATION.md), [Troubleshooting](docs/TROUBLESHOOTING.md), or [report a bug](https://github.com/AlinFeraru/YNX/issues/new/choose).

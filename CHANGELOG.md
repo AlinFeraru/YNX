@@ -20,7 +20,7 @@ This beta release includes:
 
 - Fixed a Lua runtime error when hovering over a colour-picker swatch (incorrect palette-label reference).
 
-**Known release detail:** The installable **`YNX.zip`** attached to the release is the supported package. The repository source tree and GitHub-generated source-code archives may reflect an older version.
+**Source note:** The **`YNX/`** folder on **`main`** now matches the verified v0.16.10 release ZIP. The original v0.16.10 tag predates the sync, so the tag's automatically generated source archives remain older; install from the uploaded **`YNX.zip`** release asset.
 
 ## v0.15.4 — Visual overhaul (2026-11-06)
 
